@@ -1,11 +1,17 @@
 <p align="center">
-<image width="30%" src="spec/tinylang.png"> <br>
 <h2 align="center"> Tiny programming language </h2>
 </p>
 
-
-![](https://badgen.net/github/license/VerteXGMD/TinyLang)
-![](https://badgen.net/github/releases/VerteXGMD/TinyLang)
-![](https://badgen.net/github/contributors/VerteXGMD/TinyLang)
-
 **Tiny** - **tiny** programming language project for **tiny** embbed projects with **tiny** easy-to-learn syntax, **tiny** compiler and **tiny** package manager.
+
+```mermaid
+flowchart LR;
+    A[Tiny source file] -->|Parser| B(Abstract Syntax Tree);
+    B -->|TinyC C translator| D[C code]
+    B -->|TinyC LLVM frontend| E[LLVM IR]
+    D -->|Clang frontend| E[LLVM IR]
+    G[External C library, static linking] -->|Clang frontend| E[LLVM IR]
+    E[LLVM IR] -->|LLVM backend| I[Object]
+    L[External C library objects] -->|lld| P[Native binary]
+    I -->|lld| P[native binary]
+```

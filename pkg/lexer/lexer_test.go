@@ -170,7 +170,8 @@ func DoubleCharacterTokenTests(t *testing.T) {
 
 func TestKeywords(t *testing.T) {
 	tests := map[string][][]interface{}{
-		"fun struct break default case if else switch var const continue for namespace import": {
+		"return fun struct break default case if else switch var const continue for namespace import": {
+			{ReturnKeywordTokenKind, "return"},
 			{FunKeywordTokenKind, "fun"},
 			{StructKeywordTokenKind, "struct"},
 			{BreakKeywordTokenKind, "break"},
@@ -192,10 +193,10 @@ func TestKeywords(t *testing.T) {
 			{Int16KeywordTokenKind, "int16"},
 			{Int32KeywordTokenKind, "int32"},
 			{Int64KeywordTokenKind, "int64"},
-			{UInt8KeywordTokenKind, "uint8"},
-			{UInt16KeywordTokenKind, "uint16"},
-			{UInt32KeywordTokenKind, "uint32"},
-			{UInt64KeywordTokenKind, "uint64"},
+			{Uint8KeywordTokenKind, "uint8"},
+			{Uint16KeywordTokenKind, "uint16"},
+			{Uint32KeywordTokenKind, "uint32"},
+			{Uint64KeywordTokenKind, "uint64"},
 			{EOFTokenKind, "\\0"},
 		},
 	}

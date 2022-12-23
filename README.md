@@ -1,5 +1,5 @@
 <p align="center">
-<image width="70%" src="./tiny.png"> <br>
+<image width="30%" src="spec/tinylang.png"> <br>
 <h2 align="center"> Tiny programming language </h2>
 </p>
 

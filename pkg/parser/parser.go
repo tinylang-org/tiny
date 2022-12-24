@@ -23,6 +23,8 @@
 package parser
 
 import (
+	"strings"
+
 	"github.com/vertexgmd/tinylang/pkg/ast"
 	"github.com/vertexgmd/tinylang/pkg/lexer"
 	"github.com/vertexgmd/tinylang/pkg/utils"
@@ -56,6 +58,8 @@ var precedences = map[int]int{
 }
 
 type Parser struct {
+	filepath string
+
 	problem_handler *utils.CodeProblemHandler
 	lexer           *lexer.Lexer
 
@@ -73,7 +77,9 @@ type (
 
 func NewParser(filepath string, source []byte,
 	problem_handler *utils.CodeProblemHandler) *Parser {
-	p := &Parser{lexer: lexer.NewLexer(filepath, source, problem_handler)}
+	p := &Parser{filepath: filepath,
+		lexer: lexer.NewLexer(filepath, source, problem_handler)}
+	p.problem_handler = problem_handler
 
 	p.prefixParseFunctions = make(map[int]prefixParseFunction)
 	p.infixParseFunctions = make(map[int]infixParseFunction)
@@ -104,6 +110,169 @@ func NewParser(filepath string, source []byte,
 	return p
 }
 
+func (p *Parser) ParseProgramUnit() *ast.ProgramUnit {
+	namespace := p.parseNamespaceDecl()
+	if namespace == nil {
+		return nil
+	}
+
+	imports := p.parseImports()
+	TLStatements := p.parseTopLevelStatementList()
+
+	return &ast.ProgramUnit{
+		Filepath:     p.filepath,
+		Namespace:    namespace,
+		Imports:      imports,
+		TLStatements: TLStatements,
+	}
+}
+
+func (p *Parser) parseNamespaceDecl() *ast.NamespaceDecl {
+	if !p.expectCurrent(lexer.NamespaceKeywordTokenKind) {
+		return nil
+	}
+
+	if !p.expectPeek(lexer.IdentifierTokenKind) {
+		return nil
+	}
+
+	location := &utils.CodeBlockLocation{
+		StartLocation: p.currentToken.Location.StartLocation.Copy(),
+		EndLocation:   p.peekToken.Location.EndLocation.Copy(),
+	}
+
+	name := p.currentToken.Literal
+
+	if !p.expectPeek(lexer.SemiColTokenKind) {
+		return nil
+	}
+
+	p.advance() // `;`
+
+	return &ast.NamespaceDecl{NamespaceLocation: location, Name: name}
+}
+
+func (p *Parser) parseImports() []*ast.Import {
+	imports := []*ast.Import{}
+
+	for p.currentToken.Kind == lexer.ImportKeywordTokenKind {
+		import_decl := p.parseImport()
+
+		if import_decl != nil {
+			imports = append(imports, import_decl)
+		}
+
+		p.advance() // ';'
+	}
+
+	return imports
+}
+
+func (p *Parser) parseImport() *ast.Import {
+	if !p.expectPeek(lexer.StringTokenKind) {
+		return nil
+	}
+
+	location := &utils.CodeBlockLocation{
+		StartLocation: p.currentToken.Location.StartLocation.Copy().Copy(),
+		EndLocation:   p.peekToken.Location.EndLocation.Copy(),
+	}
+
+	path := p.currentToken.Literal
+
+	if !p.expectPeek(lexer.SemiColTokenKind) {
+		return nil
+	}
+
+	return &ast.Import{ImportLocation: location, Path: path}
+}
+
+func (p *Parser) parseTopLevelStatementList() []ast.TopLevelStatement {
+	return nil
+}
+
+func (p *Parser) parseType() ast.Type {
+	switch p.currentToken.Kind {
+	case lexer.Int8KeywordTokenKind:
+		return &ast.PrimaryType{Token: p.currentToken}
+	case lexer.Int16KeywordTokenKind:
+		return &ast.PrimaryType{Token: p.currentToken}
+	case lexer.Int32KeywordTokenKind:
+		return &ast.PrimaryType{Token: p.currentToken}
+	case lexer.Int64KeywordTokenKind:
+		return &ast.PrimaryType{Token: p.currentToken}
+	case lexer.Uint8KeywordTokenKind:
+		return &ast.PrimaryType{Token: p.currentToken}
+	case lexer.Uint16KeywordTokenKind:
+		return &ast.PrimaryType{Token: p.currentToken}
+	case lexer.Uint32KeywordTokenKind:
+		return &ast.PrimaryType{Token: p.currentToken}
+	case lexer.Uint64KeywordTokenKind:
+		return &ast.PrimaryType{Token: p.currentToken}
+	case lexer.MulOpTokenKind:
+		return p.parsePointerType()
+	case lexer.OpenBracketTokenKind:
+		return p.parseArrayType()
+	case lexer.IdentifierTokenKind:
+		return p.parseCustomType()
+	default:
+		p.addUnexpectedCurrentTokenError()
+	}
+
+	return nil
+}
+
+func (p *Parser) parsePointerType() ast.Type {
+	startLocation := p.currentToken.Location.StartLocation.Copy()
+	p.advance()
+
+	pointerType := p.parseType()
+	return &ast.PointerType{Type: pointerType, StartLocation: startLocation}
+}
+
+func (p *Parser) parseArrayType() ast.Type {
+	startLocation := p.currentToken.Location.StartLocation.Copy()
+
+	if !p.expectPeek(lexer.CloseBracketTokenKind) {
+		return nil
+	}
+
+	p.advance()
+
+	arrayType := p.parseType()
+
+	return &ast.ArrayType{Type: arrayType, StartLocation: startLocation}
+}
+
+func (p *Parser) parseCustomType() ast.Type {
+	var name strings.Builder
+
+	startLocation := p.currentToken.Location.StartLocation.Copy()
+
+	for p.currentToken.Kind == lexer.IdentifierTokenKind {
+		name.WriteString(p.currentToken.Literal)
+		name.WriteByte('.')
+
+		if !p.expectPeekNoErr(lexer.DotTokenKind) {
+			buffer := name.String()
+			buffer = buffer[0 : len(buffer)-1]
+			return &ast.CustomType{Name: buffer, TypeLocation: &utils.CodeBlockLocation{
+				StartLocation: startLocation,
+				EndLocation:   p.currentToken.Location.StartLocation.Copy(),
+			}}
+		}
+
+		p.advance() // '.'
+	}
+
+	buffer := name.String()
+	buffer = buffer[0 : len(buffer)-1]
+	return &ast.CustomType{Name: buffer, TypeLocation: &utils.CodeBlockLocation{
+		StartLocation: startLocation,
+		EndLocation:   p.currentToken.Location.StartLocation.Copy(),
+	}}
+}
+
 func (p *Parser) parseStatementList() []ast.Statement {
 	statements := []ast.Statement{}
 
@@ -130,7 +299,7 @@ func (p *Parser) parseStatement() ast.Statement {
 }
 
 func (p *Parser) parseReturnStatement() ast.Statement {
-	statement := &ast.ReturnStatement{TokenLocation: p.currentToken.Location}
+	statement := &ast.ReturnStatement{TokenLocation: p.currentToken.Location.Copy()}
 
 	p.advance()
 	if p.currentTokenIs(lexer.SemiColTokenKind) {
@@ -184,7 +353,7 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 func (p *Parser) parsePrefixExpression() ast.Expression {
 	expression := &ast.PrefixExpression{
 		Operator:      p.currentToken.Literal,
-		StartLocation: p.currentToken.Location.StartLocation,
+		StartLocation: p.currentToken.Location.StartLocation.Copy(),
 	}
 
 	p.advance()
@@ -222,14 +391,46 @@ func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
 
 func (p *Parser) parseBooleanLiteral() ast.Expression {
 	return &ast.BooleanLiteral{
-		TokenLocation: p.currentToken.Location,
+		TokenLocation: p.currentToken.Location.Copy(),
 		Value:         p.currentToken.Literal == "true"}
 }
 
 func (p *Parser) parseStringLiteral() ast.Expression {
 	return &ast.StringLiteral{
-		TokenLocation: p.currentToken.Location,
+		TokenLocation: p.currentToken.Location.Copy(),
 		Value:         p.currentToken.Literal}
+}
+
+func (p *Parser) addUnexpectedCurrentTokenError() {
+	p.problem_handler.AddCodeProblem(utils.NewError(p.currentToken.Location.Copy(),
+		utils.UnexpectedToken2Err, []interface{}{
+			lexer.DumpTokenKind(p.currentToken.Kind)}))
+}
+
+func (p *Parser) addUnexpectedPeekTokenError() {
+	p.problem_handler.AddCodeProblem(utils.NewError(p.peekToken.Location.Copy(),
+		utils.UnexpectedToken2Err, []interface{}{
+			lexer.DumpTokenKind(p.peekToken.Kind)}))
+}
+
+func (p *Parser) expectCurrent(tokenKind int) bool {
+	if p.currentTokenIs(tokenKind) {
+		return true
+	} else {
+		p.problem_handler.AddCodeProblem(utils.NewError(p.currentToken.Location.Copy(),
+			utils.UnexpectedTokenErr, []interface{}{lexer.DumpTokenKind(tokenKind),
+				lexer.DumpTokenKind(p.currentToken.Kind)}))
+		return false
+	}
+}
+
+func (p *Parser) expectPeekNoErr(tokenKind int) bool {
+	if p.peekTokenIs(tokenKind) {
+		p.advance()
+		return true
+	} else {
+		return false
+	}
 }
 
 func (p *Parser) expectPeek(tokenKind int) bool {
@@ -237,6 +438,9 @@ func (p *Parser) expectPeek(tokenKind int) bool {
 		p.advance()
 		return true
 	} else {
+		p.problem_handler.AddCodeProblem(utils.NewError(p.peekToken.Location.Copy(),
+			utils.UnexpectedTokenErr, []interface{}{lexer.DumpTokenKind(tokenKind),
+				lexer.DumpTokenKind(p.peekToken.Kind)}))
 		return false
 	}
 }

@@ -41,6 +41,8 @@ const (
 	HexadecimalMantissaRequiresPExponentErr
 	InvalidDigitErr
 	UnderscoreMustSeparateSuccessiveDigitsErr
+	UnexpectedTokenErr
+	UnexpectedToken2Err
 )
 
 var error_messages = map[int]string{
@@ -62,4 +64,6 @@ var error_messages = map[int]string{
 	HexadecimalMantissaRequiresPExponentErr:   "hexadecimal mantissa requires `p` exponent",
 	InvalidDigitErr:                           "invalid digit %q in %s",
 	UnderscoreMustSeparateSuccessiveDigitsErr: "`_` must separate successive digits",
+	UnexpectedTokenErr:                        "expected token to be %s, got %s instead",
+	UnexpectedToken2Err:                       "unexpected %s token",
 }

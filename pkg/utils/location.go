@@ -40,6 +40,10 @@ func (l *CodePointLocation) Copy() *CodePointLocation {
 	return &CodePointLocation{l.Filepath, l.Index, l.Line, l.Column}
 }
 
+func (l *CodeBlockLocation) Copy() *CodeBlockLocation {
+	return &CodeBlockLocation{StartLocation: l.StartLocation.Copy(), EndLocation: l.EndLocation.Copy()}
+}
+
 func (l *CodePointLocation) NextByteLocation() *CodePointLocation {
 	return &CodePointLocation{l.Filepath, l.Index + 1, l.Line, l.Column + 1}
 }

@@ -23,6 +23,9 @@
 package ast
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/vertexgmd/tinylang/pkg/lexer"
 	"github.com/vertexgmd/tinylang/pkg/utils"
 )
@@ -52,29 +55,71 @@ type Expression interface {
 	expressionNode()
 }
 
-type Imports struct {
-	Imports  []string
-	location *utils.CodeBlockLocation
+type Import struct {
+	Path           string
+	ImportLocation *utils.CodeBlockLocation
 }
 
-func (i *Imports) Location() *utils.CodeBlockLocation { return i.location }
+func (i *Import) Location() *utils.CodeBlockLocation { return i.ImportLocation }
+func (i *Import) Dump(tabLevel int) string {
+	var sb strings.Builder
+	sb.WriteString("Import(\n")
+
+	tabLevel++
+	addIdentation(tabLevel, &sb)
+	sb.WriteString(fmt.Sprintf("path=\"%s\",\n", i.Path))
+	addIdentation(tabLevel, &sb)
+	sb.WriteString(fmt.Sprintf("location=%s\n", i.ImportLocation.Dump()))
+	tabLevel--
+	addIdentation(tabLevel, &sb)
+	sb.WriteString(")")
+
+	return sb.String()
+}
 
 type NamespaceDecl struct {
-	Name     string
-	location *utils.CodeBlockLocation
+	Name              string
+	NamespaceLocation *utils.CodeBlockLocation
 }
 
-func (n *NamespaceDecl) Location() *utils.CodeBlockLocation { return n.location }
+func (n *NamespaceDecl) Location() *utils.CodeBlockLocation { return n.NamespaceLocation }
+func (n *NamespaceDecl) Dump(tabLevel int) string {
+	return fmt.Sprintf("Namespace(name=%s)", n.Name)
+}
 
 type ProgramUnit struct {
-	Namespace     *NamespaceDecl
-	Imports       *Imports
-	Tl_statements []TopLevelStatement
+	Filepath     string
+	Namespace    *NamespaceDecl
+	Imports      []*Import
+	TLStatements []TopLevelStatement
 }
 
 func (p *ProgramUnit) Location() *utils.CodeBlockLocation {
 	return &utils.CodeBlockLocation{StartLocation: p.Namespace.Location().StartLocation,
-		EndLocation: p.Tl_statements[len(p.Tl_statements)-1].Location().EndLocation}
+		EndLocation: p.TLStatements[len(p.TLStatements)-1].Location().EndLocation}
+}
+func (p *ProgramUnit) Dump(tabLevel int) string {
+	var sb strings.Builder
+	sb.WriteString("ProgramUnit(\n")
+
+	tabLevel++
+	addIdentation(tabLevel, &sb)
+	sb.WriteString(fmt.Sprintf("filepath=\"%s\",\n", p.Filepath))
+	addIdentation(tabLevel, &sb)
+	sb.WriteString(fmt.Sprintf("imports=["))
+
+	for _, imp := range p.Imports {
+		sb.WriteString(imp.Dump(tabLevel))
+		sb.WriteString(", ")
+	}
+
+	sb.WriteString("]\n")
+
+	tabLevel--
+	addIdentation(tabLevel, &sb)
+	sb.WriteString(")")
+
+	return sb.String()
 }
 
 type StatementsBlock struct {
@@ -229,32 +274,46 @@ func (m *MapLiteral) Location() *utils.CodeBlockLocation { return m.location }
 func (m *MapLiteral) expressionNode()                    {}
 
 type PrimaryType struct {
-	Token lexer.Token
+	Token *lexer.Token
 }
 
 func (p *PrimaryType) Location() *utils.CodeBlockLocation { return p.Token.Location }
 func (p *PrimaryType) typeNode()                          {}
 
 type PointerType struct {
-	startLocation *utils.CodePointLocation
+	StartLocation *utils.CodePointLocation
 	Type          Type
 }
 
 func (p *PointerType) Location() *utils.CodeBlockLocation {
-	return &utils.CodeBlockLocation{StartLocation: p.startLocation,
+	return &utils.CodeBlockLocation{StartLocation: p.StartLocation,
 		EndLocation: p.Type.Location().EndLocation}
 }
 
 func (p *PointerType) typeNode() {}
 
 type ArrayType struct {
-	startLocation *utils.CodePointLocation
+	StartLocation *utils.CodePointLocation
 	Type          Type
 }
 
 func (a *ArrayType) Location() *utils.CodeBlockLocation {
-	return &utils.CodeBlockLocation{StartLocation: a.startLocation,
+	return &utils.CodeBlockLocation{StartLocation: a.StartLocation,
 		EndLocation: a.Type.Location().EndLocation}
 }
 
 func (a *ArrayType) typeNode() {}
+
+type CustomType struct {
+	TypeLocation *utils.CodeBlockLocation
+	Name         string
+}
+
+func (c *CustomType) Location() *utils.CodeBlockLocation { return c.TypeLocation }
+func (c *CustomType) typeNode()                          {}
+
+func addIdentation(tabLevel int, stringBuilder *strings.Builder) {
+	for i := 0; i < tabLevel; i++ {
+		stringBuilder.WriteString("\t")
+	}
+}

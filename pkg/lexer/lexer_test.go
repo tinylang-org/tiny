@@ -45,7 +45,7 @@ func TestEOF2(t *testing.T) {
 
 func TestASCIIIdentifier(t *testing.T) {
 	p := utils.NewCodeProblemHandler()
-	l := NewLexer(" ", []byte("test"), p)
+	l := NewLexer(" ", []byte("FOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO"), p)
 	tok := l.NextToken()
 	assert.Equal(t, tok.Kind, IdentifierTokenKind)
 }

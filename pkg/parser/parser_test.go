@@ -27,6 +27,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/vertexgmd/tinylang/pkg/ast"
+	"github.com/vertexgmd/tinylang/pkg/lexer"
 	"github.com/vertexgmd/tinylang/pkg/utils"
 )
 
@@ -52,4 +53,67 @@ func TestReturnStatement(t *testing.T) {
 		statement.(*ast.ReturnStatement).HasReturnValue)
 	assert.Equal(t, "hello",
 		statement.(*ast.ReturnStatement).ReturnValue.(*ast.StringLiteral).Value)
+}
+
+func TestPrimaryType(t *testing.T) {
+	p := utils.NewCodeProblemHandler()
+	parser := NewParser("", []byte("int32"), p)
+	tp := parser.parseType()
+	assert.Equal(t, lexer.Int32KeywordTokenKind,
+		tp.(*ast.PrimaryType).Token.Kind)
+	p.PrintProblems()
+}
+
+func TestPointerType(t *testing.T) {
+	p := utils.NewCodeProblemHandler()
+	parser := NewParser("", []byte("*int32"), p)
+	tp := parser.parseType()
+	assert.Equal(t, lexer.Int32KeywordTokenKind,
+		tp.(*ast.PointerType).Type.(*ast.PrimaryType).Token.Kind)
+	p.PrintProblems()
+}
+
+func TestPointerType2(t *testing.T) {
+	p := utils.NewCodeProblemHandler()
+	parser := NewParser("", []byte("**int8"), p)
+	tp := parser.parseType()
+	assert.Equal(t, lexer.Int8KeywordTokenKind,
+		tp.(*ast.PointerType).Type.(*ast.PointerType).Type.(*ast.PrimaryType).Token.Kind)
+	p.PrintProblems()
+}
+
+func TestArrayType(t *testing.T) {
+	p := utils.NewCodeProblemHandler()
+	parser := NewParser("", []byte("[]int8"), p)
+	tp := parser.parseType()
+	assert.Equal(t, lexer.Int8KeywordTokenKind,
+		tp.(*ast.ArrayType).Type.(*ast.PrimaryType).Token.Kind)
+	p.PrintProblems()
+}
+
+func TestArrayType2(t *testing.T) {
+	p := utils.NewCodeProblemHandler()
+	parser := NewParser("", []byte("*[]*int8"), p)
+	tp := parser.parseType()
+	assert.Equal(t, lexer.Int8KeywordTokenKind,
+		tp.(*ast.PointerType).Type.(*ast.ArrayType).Type.(*ast.PointerType).Type.(*ast.PrimaryType).Token.Kind)
+	p.PrintProblems()
+}
+
+func TestCustomType(t *testing.T) {
+	p := utils.NewCodeProblemHandler()
+	parser := NewParser("", []byte("custom"), p)
+	tp := parser.parseType()
+	assert.Equal(t, "custom",
+		tp.(*ast.CustomType).Name)
+	p.PrintProblems()
+}
+
+func TestCustomType2(t *testing.T) {
+	p := utils.NewCodeProblemHandler()
+	parser := NewParser("", []byte("mylib.custom"), p)
+	tp := parser.parseType()
+	assert.Equal(t, "mylib.custom",
+		tp.(*ast.CustomType).Name)
+	p.PrintProblems()
 }

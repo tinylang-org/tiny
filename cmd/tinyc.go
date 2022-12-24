@@ -31,8 +31,33 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/vertexgmd/tinylang/pkg/lexer"
+	"github.com/vertexgmd/tinylang/pkg/parser"
 	"github.com/vertexgmd/tinylang/pkg/utils"
 )
+
+var parserPromptCmd = &cobra.Command{
+	Use:   "parserprompt",
+	Short: "Prompt for testing parser",
+	Run: func(cmd *cobra.Command, args []string) {
+		reader := bufio.NewReader(os.Stdin)
+
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			ph := utils.NewCodeProblemHandler()
+			p := parser.NewParser("<repl>", []byte(line), ph)
+			unit := p.ParseProgramUnit()
+			if unit != nil {
+				fmt.Println(unit.Dump(0))
+			}
+
+			ph.PrintProblems()
+		}
+	},
+}
 
 var lexPromptCmd = &cobra.Command{
 	Use:   "lexprompt",
@@ -101,6 +126,7 @@ var rootCmd = &cobra.Command{
 func main() {
 	rootCmd.AddCommand(lexPromptCmd)
 	rootCmd.AddCommand(lexCmd)
+	rootCmd.AddCommand(parserPromptCmd)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

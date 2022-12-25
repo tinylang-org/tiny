@@ -122,14 +122,54 @@ func (p *ProgramUnit) Dump(tabLevel int) string {
 	return sb.String()
 }
 
+type FunctionDeclaration struct {
+	BlockLocation   *utils.CodeBlockLocation
+	Public          bool
+	Name            string
+	StatementsBlock *StatementsBlock
+	Arguments       []*FunctionArgument
+}
+
+func (f *FunctionDeclaration) Location() *utils.CodeBlockLocation { return f.BlockLocation }
+func (f *FunctionDeclaration) topLevelStatement()                 {}
+
+type FunctionArgument struct {
+	BlockLocation *utils.CodeBlockLocation
+	Name          string
+	Type          Type
+}
+
+func (a *FunctionArgument) Location() *utils.CodeBlockLocation { return a.BlockLocation }
+
+type StructureDeclaration struct {
+	BlockLocation *utils.CodeBlockLocation
+	Public        bool
+	Name          string
+	Functions     *FunctionDeclaration
+	Members       []*StructureMember
+}
+
+func (s *StructureDeclaration) Location() *utils.CodeBlockLocation { return s.BlockLocation }
+func (s *StructureDeclaration) topLevelStatement()                 {}
+
+type StructureMember struct {
+	BlockLocation *utils.CodeBlockLocation
+	Public        bool
+	Readonly      bool
+	Name          string
+	Type          Type
+}
+
+func (m *StructureMember) Location() *utils.CodeBlockLocation { return m.BlockLocation }
+
 type StatementsBlock struct {
 	// location of '{'
-	startLocation *utils.CodePointLocation
+	StartLocation *utils.CodePointLocation
 	Statements    []Statement
 }
 
 func (s *StatementsBlock) Location() *utils.CodeBlockLocation {
-	return &utils.CodeBlockLocation{StartLocation: s.startLocation,
+	return &utils.CodeBlockLocation{StartLocation: s.StartLocation,
 		EndLocation: s.Statements[len(s.Statements)-1].Location().EndLocation}
 }
 
@@ -198,19 +238,20 @@ func (i *InfixExpression) expressionNode() {}
 func (i *InfixExpression) statementNode()  {}
 
 type CallExpression struct {
-	function  Expression
-	arguments []Expression
+	Function  Expression
+	Arguments []Expression
 
 	// location of ')'
-	endLocation *utils.CodePointLocation
+	EndLocation *utils.CodePointLocation
 }
 
 func (c *CallExpression) Location() *utils.CodeBlockLocation {
-	return &utils.CodeBlockLocation{StartLocation: c.function.Location().StartLocation,
-		EndLocation: c.endLocation}
+	return &utils.CodeBlockLocation{StartLocation: c.Function.Location().StartLocation,
+		EndLocation: c.EndLocation}
 }
 
 func (c *CallExpression) expressionNode() {}
+func (c *CallExpression) statementNode()  {}
 
 type Name struct {
 	location *utils.CodeBlockLocation

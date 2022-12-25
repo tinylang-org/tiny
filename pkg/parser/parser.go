@@ -102,7 +102,8 @@ func NewParser(filepath string, source []byte,
 	p.registerInfixFunction(lexer.LTEOpTokenKind, p.parseInfixExpression)
 	p.registerInfixFunction(lexer.GTEOpTokenKind, p.parseInfixExpression)
 
-	// p.registerInfixFunction(lexer.OpenParentTokenKind, p.parseFunctionCallExpression)
+	p.registerInfixFunction(lexer.DotTokenKind, p.parseMemberExpression)
+	p.registerInfixFunction(lexer.OpenParentTokenKind, p.parseFunctionCallExpression)
 	p.registerInfixFunction(lexer.OpenBracketTokenKind, p.parseIndexExpression)
 
 	p.advance()
@@ -187,7 +188,94 @@ func (p *Parser) parseImport() *ast.Import {
 	return &ast.Import{ImportLocation: location, Path: path}
 }
 
+// top_level_statement = function_declaration |
+//                       struct_declaration .
 func (p *Parser) parseTopLevelStatementList() []ast.TopLevelStatement {
+	var list []ast.TopLevelStatement
+
+	for p.currentToken.Kind != lexer.EOFTokenKind {
+		stmt := p.parseTopLevelStatement()
+		if stmt != nil {
+			list = append(list, stmt)
+		}
+
+		p.advance() // '}'
+	}
+
+	return list
+}
+
+func (p *Parser) parseTopLevelStatement() ast.TopLevelStatement {
+	switch p.currentToken.Kind {
+	case lexer.PubKeywordTokenKind:
+		switch p.peekToken.Kind {
+		case lexer.FunKeywordTokenKind:
+			return p.parseFunctionDeclaration(true)
+		case lexer.StructKeywordTokenKind:
+			return p.parseStructureDeclaration(true)
+		default:
+			return nil
+		}
+
+	case lexer.FunKeywordTokenKind:
+		return p.parseFunctionDeclaration(false)
+	case lexer.StructKeywordTokenKind:
+		return p.parseStructureDeclaration(false)
+	default:
+		return nil
+	}
+}
+
+func (p *Parser) parseFunctionDeclaration(public bool) ast.TopLevelStatement {
+	startLocation := p.currentToken.Location.StartLocation
+
+	if public {
+		p.advance() // 'pub'
+	}
+
+	if !p.expectPeek(lexer.IdentifierTokenKind) {
+		return nil
+	}
+
+	functionName := p.currentToken.Literal
+
+	// TODO: generics
+
+	if !p.expectPeek(lexer.OpenBraceTokenKind) {
+		return nil
+	}
+
+	statementsBlockStartLocation := p.currentToken.Location.StartLocation
+	statements := p.parseStatementList()
+
+	if !p.expectCurrent(lexer.CloseBraceTokenKind) {
+		return nil
+	}
+
+	endLocation := p.currentToken.Location.EndLocation
+
+	return &ast.FunctionDeclaration{Public: public,
+		Name: functionName,
+		StatementsBlock: &ast.StatementsBlock{
+			Statements:    statements,
+			StartLocation: statementsBlockStartLocation,
+		},
+		BlockLocation: &utils.CodeBlockLocation{
+			StartLocation: startLocation,
+			EndLocation:   endLocation,
+		},
+	}
+}
+
+func (p *Parser) parseFunctionArguments() []*ast.FunctionArgument {
+	return nil
+}
+
+func (p *Parser) parseFunctionArgument() *ast.FunctionArgument {
+	return nil
+}
+
+func (p *Parser) parseStructureDeclaration(public bool) ast.TopLevelStatement {
 	return nil
 }
 
@@ -283,7 +371,7 @@ func (p *Parser) parseStatementList() []ast.Statement {
 			statements = append(statements, statement)
 		}
 
-		p.advance()
+		p.advance() // ';'
 	}
 
 	return statements
@@ -399,6 +487,40 @@ func (p *Parser) parseStringLiteral() ast.Expression {
 	return &ast.StringLiteral{
 		TokenLocation: p.currentToken.Location.Copy(),
 		Value:         p.currentToken.Literal}
+}
+
+func (p *Parser) parseMemberExpression(left ast.Expression) ast.Expression {
+	return nil
+}
+
+func (p *Parser) parseFunctionCallExpression(function ast.Expression) ast.Expression {
+	expression := &ast.CallExpression{Function: function}
+	expression.Arguments, expression.EndLocation = p.parseExpressionList(lexer.CloseParentTokenKind)
+	return expression
+}
+
+func (p *Parser) parseExpressionList(endTokenKind int) ([]ast.Expression, *utils.CodePointLocation) {
+	var list []ast.Expression
+
+	if p.peekTokenIs(endTokenKind) {
+		p.advance()
+		return list, p.currentToken.Location.EndLocation
+	}
+
+	p.advance()
+	list = append(list, p.parseExpression(Lowest))
+
+	for p.peekTokenIs(lexer.CommaTokenKind) {
+		p.advance()
+		p.advance()
+		list = append(list, p.parseExpression(Lowest))
+	}
+
+	if !p.expectPeek(endTokenKind) {
+		return nil, nil
+	}
+
+	return list, p.currentToken.Location.EndLocation
 }
 
 func (p *Parser) addUnexpectedCurrentTokenError() {

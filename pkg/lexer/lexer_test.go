@@ -45,7 +45,7 @@ func TestEOF2(t *testing.T) {
 
 func TestASCIIIdentifier(t *testing.T) {
 	p := utils.NewCodeProblemHandler()
-	l := NewLexer(" ", []byte("FOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO"), p)
+	l := NewLexer(" ", []byte("foo"), p)
 	tok := l.NextToken()
 	assert.Equal(t, tok.Kind, IdentifierTokenKind)
 }
@@ -170,7 +170,8 @@ func DoubleCharacterTokenTests(t *testing.T) {
 
 func TestKeywords(t *testing.T) {
 	tests := map[string][][]interface{}{
-		"return fun struct break default case if else switch var const continue for namespace import": {
+		"pub return fun struct break default case if else switch var const continue for namespace import": {
+			{PubKeywordTokenKind, "pub"},
 			{ReturnKeywordTokenKind, "return"},
 			{FunKeywordTokenKind, "fun"},
 			{StructKeywordTokenKind, "struct"},

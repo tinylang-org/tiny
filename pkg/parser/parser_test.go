@@ -111,9 +111,9 @@ func TestCustomType(t *testing.T) {
 
 func TestCustomType2(t *testing.T) {
 	p := utils.NewCodeProblemHandler()
-	parser := NewParser("", []byte("mylib.custom"), p)
+	parser := NewParser("", []byte("mylib.ns.custom"), p)
 	tp := parser.parseType()
-	assert.Equal(t, "mylib.custom",
+	assert.Equal(t, "mylib.ns.custom",
 		tp.(*ast.CustomType).Name)
 	p.PrintProblems()
 }

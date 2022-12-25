@@ -75,6 +75,7 @@ const (
 	Int64KeywordTokenKind
 	Int8KeywordTokenKind
 	NamespaceKeywordTokenKind
+	PubKeywordTokenKind
 	ReturnKeywordTokenKind
 	StructKeywordTokenKind
 	SwitchKeywordTokenKind
@@ -148,6 +149,7 @@ var dumpedKinds = map[int]string{
 	Int64KeywordTokenKind:     "int64 keyword",
 	Int8KeywordTokenKind:      "int8 keyword",
 	NamespaceKeywordTokenKind: "namespace keyword",
+	PubKeywordTokenKind:       "pub keyword",
 	ReturnKeywordTokenKind:    "return keyword",
 	StructKeywordTokenKind:    "struct keyword",
 	SwitchKeywordTokenKind:    "switch keyword",
@@ -165,7 +167,7 @@ func DumpTokenKind(k int) string {
 }
 
 var keywords = []string{
-	"break", "case", "const", "continue", "default", "else", "for", "fun", "if", "import", "int16", "int32", "int64", "int8", "namespace", "return", "struct", "switch", "uint16", "uint32", "uint64", "uint8", "var",
+	"break", "case", "const", "continue", "default", "else", "for", "fun", "if", "import", "int16", "int32", "int64", "int8", "namespace", "pub", "return", "struct", "switch", "uint16", "uint32", "uint64", "uint8", "var",
 }
 
 var keywordsAmount = len(keywords)

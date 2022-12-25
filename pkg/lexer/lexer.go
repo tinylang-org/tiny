@@ -60,6 +60,7 @@ func NewLexer(filepath string, source []byte, problemHandler *utils.CodeProblemH
 	return l
 }
 
+// Decode unicode codepoint from utf8 source code text
 func (l *Lexer) decodeRune() {
 	offset := 1
 
@@ -88,6 +89,7 @@ func (l *Lexer) decodeRune() {
 	}
 }
 
+// Advance lexer state
 func (l *Lexer) advance() {
 	if l.currentCodePoint == '\n' {
 		l.currentLocation.Line++

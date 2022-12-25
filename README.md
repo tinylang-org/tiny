@@ -8,7 +8,6 @@
 flowchart LR;
     A[Tiny source file] -->|Parser| B(Abstract Syntax Tree);
     B -->|TinyC C translator| D[C code]
-    B -->|TinyC LLVM frontend| E[LLVM IR]
     D -->|Clang frontend| E[LLVM IR]
     G[External C library, static linking] -->|Clang frontend| E[LLVM IR]
     E[LLVM IR] -->|LLVM backend| I[Object]

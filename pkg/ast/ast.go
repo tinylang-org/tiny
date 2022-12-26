@@ -32,6 +32,7 @@ import (
 
 type AST interface {
 	Location() *utils.CodeBlockLocation
+	Dump() string
 }
 
 type Statement interface {
@@ -106,11 +107,16 @@ func (p *ProgramUnit) Dump(tabLevel int) string {
 	addIdentation(tabLevel, &sb)
 	sb.WriteString(fmt.Sprintf("filepath=\"%s\",\n", p.Filepath))
 	addIdentation(tabLevel, &sb)
+	sb.WriteString(fmt.Sprintf("namespace=%s,\n", p.Namespace.Dump(tabLevel)))
+	addIdentation(tabLevel, &sb)
 	sb.WriteString(fmt.Sprintf("imports=["))
 
-	for _, imp := range p.Imports {
+	for i, imp := range p.Imports {
 		sb.WriteString(imp.Dump(tabLevel))
-		sb.WriteString(", ")
+
+		if i != len(p.Imports)-1 {
+			sb.WriteString(", ")
+		}
 	}
 
 	sb.WriteString("]\n")
@@ -132,6 +138,7 @@ type FunctionDeclaration struct {
 
 func (f *FunctionDeclaration) Location() *utils.CodeBlockLocation { return f.BlockLocation }
 func (f *FunctionDeclaration) topLevelStatement()                 {}
+func (f *FunctionDeclaration) Dump() string                       { return "" }
 
 type FunctionArgument struct {
 	BlockLocation *utils.CodeBlockLocation
@@ -151,6 +158,7 @@ type StructureDeclaration struct {
 
 func (s *StructureDeclaration) Location() *utils.CodeBlockLocation { return s.BlockLocation }
 func (s *StructureDeclaration) topLevelStatement()                 {}
+func (s *StructureDeclaration) Dump() string                       { return "" }
 
 type StructureMember struct {
 	BlockLocation *utils.CodeBlockLocation
@@ -173,6 +181,8 @@ func (s *StatementsBlock) Location() *utils.CodeBlockLocation {
 		EndLocation: s.Statements[len(s.Statements)-1].Location().EndLocation}
 }
 
+func (s *StatementsBlock) Dump() string { return "" }
+
 type VarStatement struct {
 	// location of 'var'
 	startLocation *utils.CodePointLocation
@@ -187,6 +197,7 @@ func (v *VarStatement) Location() *utils.CodeBlockLocation {
 }
 func (v *VarStatement) statementNode()     {}
 func (v *VarStatement) topLevelStatement() {}
+func (v *VarStatement) Dump() string       { return "" }
 
 type ReturnStatement struct {
 	// location of 'return'
@@ -206,6 +217,7 @@ func (r *ReturnStatement) Location() *utils.CodeBlockLocation {
 }
 
 func (r *ReturnStatement) statementNode() {}
+func (r *ReturnStatement) Dump() string   { return "" }
 
 type PrefixExpression struct {
 	// location of operator
@@ -222,7 +234,9 @@ func (p *PrefixExpression) Location() *utils.CodeBlockLocation {
 
 func (p *PrefixExpression) expressionNode() {}
 func (p *PrefixExpression) statementNode()  {}
+func (p *PrefixExpression) Dump() string    { return "" }
 
+// infix_expression = left operator right .
 type InfixExpression struct {
 	Left     Expression
 	Operator string
@@ -236,6 +250,7 @@ func (i *InfixExpression) Location() *utils.CodeBlockLocation {
 
 func (i *InfixExpression) expressionNode() {}
 func (i *InfixExpression) statementNode()  {}
+func (i *InfixExpression) Dump() string    { return "" }
 
 type CallExpression struct {
 	Function  Expression
@@ -252,6 +267,7 @@ func (c *CallExpression) Location() *utils.CodeBlockLocation {
 
 func (c *CallExpression) expressionNode() {}
 func (c *CallExpression) statementNode()  {}
+func (c *CallExpression) Dump() string    { return "" }
 
 type Name struct {
 	location *utils.CodeBlockLocation
@@ -260,6 +276,7 @@ type Name struct {
 
 func (n *Name) Location() *utils.CodeBlockLocation { return n.location }
 func (n *Name) expressionNode()                    {}
+func (n *Name) Dump() string                       { return "" }
 
 type BooleanLiteral struct {
 	TokenLocation *utils.CodeBlockLocation
@@ -269,6 +286,7 @@ type BooleanLiteral struct {
 func (b *BooleanLiteral) Location() *utils.CodeBlockLocation { return b.TokenLocation }
 func (b *BooleanLiteral) expressionNode()                    {}
 func (b *BooleanLiteral) statementNode()                     {}
+func (b *BooleanLiteral) Dump() string                       { return "" }
 
 type StringLiteral struct {
 	TokenLocation *utils.CodeBlockLocation
@@ -278,6 +296,7 @@ type StringLiteral struct {
 func (s *StringLiteral) Location() *utils.CodeBlockLocation { return s.TokenLocation }
 func (s *StringLiteral) expressionNode()                    {}
 func (s *StringLiteral) statementNode()                     {}
+func (s *StringLiteral) Dump() string                       { return "" }
 
 type ArrayLiteral struct {
 	location *utils.CodeBlockLocation
@@ -286,6 +305,7 @@ type ArrayLiteral struct {
 
 func (a *ArrayLiteral) Location() *utils.CodeBlockLocation { return a.location }
 func (a *ArrayLiteral) expressionNode()                    {}
+func (a *ArrayLiteral) Dump() string                       { return "" }
 
 type IndexExpression struct {
 	Left  Expression
@@ -302,6 +322,7 @@ func (i *IndexExpression) Location() *utils.CodeBlockLocation {
 
 func (i *IndexExpression) expressionNode() {}
 func (i *IndexExpression) statementNode()  {}
+func (i *IndexExpression) Dump() string    { return "" }
 
 type MapLiteral struct {
 	location *utils.CodeBlockLocation
@@ -313,6 +334,7 @@ type MapLiteral struct {
 
 func (m *MapLiteral) Location() *utils.CodeBlockLocation { return m.location }
 func (m *MapLiteral) expressionNode()                    {}
+func (m *MapLiteral) Dump() string                       { return "" }
 
 type PrimaryType struct {
 	Token *lexer.Token
@@ -320,6 +342,9 @@ type PrimaryType struct {
 
 func (p *PrimaryType) Location() *utils.CodeBlockLocation { return p.Token.Location }
 func (p *PrimaryType) typeNode()                          {}
+func (p *PrimaryType) Dump() string {
+	return fmt.Sprintf("PrimaryType(%s)", lexer.DumpTokenKind(p.Token.Kind))
+}
 
 type PointerType struct {
 	StartLocation *utils.CodePointLocation
@@ -333,6 +358,10 @@ func (p *PointerType) Location() *utils.CodeBlockLocation {
 
 func (p *PointerType) typeNode() {}
 
+func (p *PointerType) Dump() string {
+	return fmt.Sprintf("PointerType(%s)", p.Type.Dump())
+}
+
 type ArrayType struct {
 	StartLocation *utils.CodePointLocation
 	Type          Type
@@ -345,6 +374,10 @@ func (a *ArrayType) Location() *utils.CodeBlockLocation {
 
 func (a *ArrayType) typeNode() {}
 
+func (a *ArrayType) Dump() string {
+	return fmt.Sprintf("ArrayType(%s)", a.Type.Dump())
+}
+
 type CustomType struct {
 	TypeLocation *utils.CodeBlockLocation
 	Name         string
@@ -352,6 +385,9 @@ type CustomType struct {
 
 func (c *CustomType) Location() *utils.CodeBlockLocation { return c.TypeLocation }
 func (c *CustomType) typeNode()                          {}
+func (c *CustomType) Dump() string {
+	return fmt.Sprintf("CustomType(%s)", c.Name)
+}
 
 func addIdentation(tabLevel int, stringBuilder *strings.Builder) {
 	for i := 0; i < tabLevel; i++ {

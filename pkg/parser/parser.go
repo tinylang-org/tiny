@@ -133,7 +133,7 @@ func (p *Parser) parseNamespaceDecl() *ast.NamespaceDecl {
 		return nil
 	}
 
-	if !p.expectPeek(lexer.IdentifierTokenKind) {
+	if !p.expectPeek(lexer.StringTokenKind) {
 		return nil
 	}
 
@@ -189,7 +189,8 @@ func (p *Parser) parseImport() *ast.Import {
 }
 
 // top_level_statement = function_declaration |
-//                       struct_declaration .
+//
+//	struct_declaration .
 func (p *Parser) parseTopLevelStatementList() []ast.TopLevelStatement {
 	var list []ast.TopLevelStatement
 
@@ -241,12 +242,37 @@ func (p *Parser) parseFunctionDeclaration(public bool) ast.TopLevelStatement {
 
 	// TODO: generics
 
+	if !p.expectPeek(lexer.OpenParentTokenKind) {
+		return nil
+	}
+
+	var arguments []*ast.FunctionArgument
+
+	p.advance()
+	if p.currentTokenIs(lexer.CloseParentTokenKind) {
+		arguments = []*ast.FunctionArgument{}
+	} else {
+		arguments = p.parseFunctionArguments()
+
+		if !p.expectCurrent(lexer.CloseParentTokenKind) {
+			return nil
+		}
+	}
+
 	if !p.expectPeek(lexer.OpenBraceTokenKind) {
 		return nil
 	}
 
 	statementsBlockStartLocation := p.currentToken.Location.StartLocation
-	statements := p.parseStatementList()
+
+	p.advance()
+
+	var statements []ast.Statement
+	if p.currentTokenIs(lexer.CloseBraceTokenKind) {
+		statements = []ast.Statement{}
+	} else {
+		statements = p.parseStatementList()
+	}
 
 	if !p.expectCurrent(lexer.CloseBraceTokenKind) {
 		return nil
@@ -255,7 +281,8 @@ func (p *Parser) parseFunctionDeclaration(public bool) ast.TopLevelStatement {
 	endLocation := p.currentToken.Location.EndLocation
 
 	return &ast.FunctionDeclaration{Public: public,
-		Name: functionName,
+		Name:      functionName,
+		Arguments: arguments,
 		StatementsBlock: &ast.StatementsBlock{
 			Statements:    statements,
 			StartLocation: statementsBlockStartLocation,
@@ -268,11 +295,39 @@ func (p *Parser) parseFunctionDeclaration(public bool) ast.TopLevelStatement {
 }
 
 func (p *Parser) parseFunctionArguments() []*ast.FunctionArgument {
-	return nil
+	var arguments []*ast.FunctionArgument
+
+	for p.currentToken.Kind != lexer.CloseParentTokenKind {
+		argument := p.parseFunctionArgument()
+		arguments = append(arguments, argument)
+
+		if p.currentToken.Kind == lexer.CommaTokenKind {
+			p.advance() // skip comma
+		}
+	}
+
+	return arguments
 }
 
 func (p *Parser) parseFunctionArgument() *ast.FunctionArgument {
-	return nil
+	if !p.expectCurrent(lexer.IdentifierTokenKind) {
+		return nil
+	}
+
+	startLocation := p.currentToken.Location.StartLocation.Copy()
+	name := p.currentToken.Literal
+	typeDef := p.parseType()
+	p.advance()
+	endLocation := p.currentToken.Location.EndLocation.Copy()
+
+	return &ast.FunctionArgument{
+		Name: name,
+		Type: typeDef,
+		BlockLocation: &utils.CodeBlockLocation{
+			StartLocation: startLocation,
+			EndLocation:   endLocation,
+		},
+	}
 }
 
 func (p *Parser) parseStructureDeclaration(public bool) ast.TopLevelStatement {
@@ -364,6 +419,7 @@ func (p *Parser) parseCustomType() ast.Type {
 func (p *Parser) parseStatementList() []ast.Statement {
 	statements := []ast.Statement{}
 
+	p.advance() // openbrace
 	for p.currentToken.Kind != lexer.EOFTokenKind {
 		statement := p.parseStatement()
 

@@ -1,4 +1,4 @@
-module github.com/vertexgmd/tinylang
+module github.com/tinylang-org/tiny
 
 go 1.17
 

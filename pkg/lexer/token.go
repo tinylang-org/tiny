@@ -25,7 +25,7 @@ package lexer
 import (
 	"fmt"
 
-	"github.com/vertexgmd/tinylang/pkg/utils"
+	"github.com/tinylang-org/tiny/pkg/utils"
 )
 
 type Token struct {

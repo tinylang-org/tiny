@@ -30,9 +30,9 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/vertexgmd/tinylang/pkg/lexer"
-	"github.com/vertexgmd/tinylang/pkg/parser"
-	"github.com/vertexgmd/tinylang/pkg/utils"
+	"github.com/tinylang-org/tiny/pkg/lexer"
+	"github.com/tinylang-org/tiny/pkg/parser"
+	"github.com/tinylang-org/tiny/pkg/utils"
 )
 
 var parserPromptCmd = &cobra.Command{

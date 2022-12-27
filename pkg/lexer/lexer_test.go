@@ -26,7 +26,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/vertexgmd/tinylang/pkg/utils"
+	"github.com/tinylang-org/tiny/pkg/utils"
 )
 
 func TestEOF(t *testing.T) {

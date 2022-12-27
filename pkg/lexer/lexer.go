@@ -26,7 +26,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/vertexgmd/tinylang/pkg/utils"
+	"github.com/tinylang-org/tiny/pkg/utils"
 )
 
 type Lexer struct {

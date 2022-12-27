@@ -26,9 +26,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/vertexgmd/tinylang/pkg/ast"
-	"github.com/vertexgmd/tinylang/pkg/lexer"
-	"github.com/vertexgmd/tinylang/pkg/utils"
+	"github.com/tinylang-org/tiny/pkg/ast"
+	"github.com/tinylang-org/tiny/pkg/lexer"
+	"github.com/tinylang-org/tiny/pkg/utils"
 )
 
 func TestBooleanLiteral(t *testing.T) {

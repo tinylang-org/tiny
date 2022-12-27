@@ -26,13 +26,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/vertexgmd/tinylang/pkg/lexer"
-	"github.com/vertexgmd/tinylang/pkg/utils"
+	"github.com/tinylang-org/tiny/pkg/lexer"
+	"github.com/tinylang-org/tiny/pkg/utils"
 )
 
 type AST interface {
 	Location() *utils.CodeBlockLocation
-	Dump() string
+	Dump(identationLevel int) string
 }
 
 type Statement interface {
@@ -62,17 +62,19 @@ type Import struct {
 }
 
 func (i *Import) Location() *utils.CodeBlockLocation { return i.ImportLocation }
-func (i *Import) Dump(tabLevel int) string {
+func (i *Import) Dump(identationLevel int) string {
 	var sb strings.Builder
+
+	addIdentation(identationLevel, &sb)
 	sb.WriteString("Import(\n")
 
-	tabLevel++
-	addIdentation(tabLevel, &sb)
+	identationLevel++
+	addIdentation(identationLevel, &sb)
 	sb.WriteString(fmt.Sprintf("path=\"%s\",\n", i.Path))
-	addIdentation(tabLevel, &sb)
+	addIdentation(identationLevel, &sb)
 	sb.WriteString(fmt.Sprintf("location=%s\n", i.ImportLocation.Dump()))
-	tabLevel--
-	addIdentation(tabLevel, &sb)
+	identationLevel--
+	addIdentation(identationLevel, &sb)
 	sb.WriteString(")")
 
 	return sb.String()
@@ -84,7 +86,7 @@ type NamespaceDecl struct {
 }
 
 func (n *NamespaceDecl) Location() *utils.CodeBlockLocation { return n.NamespaceLocation }
-func (n *NamespaceDecl) Dump(tabLevel int) string {
+func (n *NamespaceDecl) Dump(identationLevel int) string {
 	return fmt.Sprintf("Namespace(name=%s)", n.Name)
 }
 
@@ -99,30 +101,40 @@ func (p *ProgramUnit) Location() *utils.CodeBlockLocation {
 	return &utils.CodeBlockLocation{StartLocation: p.Namespace.Location().StartLocation,
 		EndLocation: p.TLStatements[len(p.TLStatements)-1].Location().EndLocation}
 }
-func (p *ProgramUnit) Dump(tabLevel int) string {
+func (p *ProgramUnit) Dump(identationLevel int) string {
 	var sb strings.Builder
 	sb.WriteString("ProgramUnit(\n")
 
-	tabLevel++
-	addIdentation(tabLevel, &sb)
+	identationLevel++
+	addIdentation(identationLevel, &sb)
 	sb.WriteString(fmt.Sprintf("filepath=\"%s\",\n", p.Filepath))
-	addIdentation(tabLevel, &sb)
-	sb.WriteString(fmt.Sprintf("namespace=%s,\n", p.Namespace.Dump(tabLevel)))
-	addIdentation(tabLevel, &sb)
-	sb.WriteString(fmt.Sprintf("imports=["))
+	addIdentation(identationLevel, &sb)
+	sb.WriteString(fmt.Sprintf("namespace=%s,\n", p.Namespace.Dump(identationLevel)))
+	addIdentation(identationLevel, &sb)
 
-	for i, imp := range p.Imports {
-		sb.WriteString(imp.Dump(tabLevel))
+	if len(p.Imports) != 0 {
+		sb.WriteString(fmt.Sprintf("imports=[\n"))
 
-		if i != len(p.Imports)-1 {
-			sb.WriteString(", ")
+		identationLevel++
+
+		for i, imp := range p.Imports {
+			sb.WriteString(imp.Dump(identationLevel))
+
+			if i != len(p.Imports)-1 {
+				sb.WriteString(",")
+			}
+			sb.WriteString("\n")
 		}
+
+		identationLevel--
+		addIdentation(identationLevel, &sb)
+		sb.WriteString("]\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("imports=[]\n"))
 	}
 
-	sb.WriteString("]\n")
-
-	tabLevel--
-	addIdentation(tabLevel, &sb)
+	identationLevel--
+	addIdentation(identationLevel, &sb)
 	sb.WriteString(")")
 
 	return sb.String()
@@ -138,7 +150,7 @@ type FunctionDeclaration struct {
 
 func (f *FunctionDeclaration) Location() *utils.CodeBlockLocation { return f.BlockLocation }
 func (f *FunctionDeclaration) topLevelStatement()                 {}
-func (f *FunctionDeclaration) Dump() string                       { return "" }
+func (f *FunctionDeclaration) Dump(identationLevel int) string    { return "" }
 
 type FunctionArgument struct {
 	BlockLocation *utils.CodeBlockLocation
@@ -147,6 +159,28 @@ type FunctionArgument struct {
 }
 
 func (a *FunctionArgument) Location() *utils.CodeBlockLocation { return a.BlockLocation }
+func (a *FunctionArgument) Dump(identationLevel int) string {
+	var sb strings.Builder
+	addIdentation(identationLevel, &sb)
+	sb.WriteString("FunctionArgument(\n")
+
+	identationLevel++
+	addIdentation(identationLevel, &sb)
+	sb.WriteString(fmt.Sprintf("name=%s,\n", a.Name))
+
+	addIdentation(identationLevel, &sb)
+	sb.WriteString(fmt.Sprintf("type=%s,\n", a.Type.Dump(identationLevel)))
+
+	addIdentation(identationLevel, &sb)
+	sb.WriteString(fmt.Sprintf("location=%s\n", a.BlockLocation.Dump()))
+
+	identationLevel--
+
+	addIdentation(identationLevel, &sb)
+	sb.WriteString(")")
+
+	return sb.String()
+}
 
 type StructureDeclaration struct {
 	BlockLocation *utils.CodeBlockLocation
@@ -158,7 +192,7 @@ type StructureDeclaration struct {
 
 func (s *StructureDeclaration) Location() *utils.CodeBlockLocation { return s.BlockLocation }
 func (s *StructureDeclaration) topLevelStatement()                 {}
-func (s *StructureDeclaration) Dump() string                       { return "" }
+func (s *StructureDeclaration) Dump(identationLevel int) string    { return "" }
 
 type StructureMember struct {
 	BlockLocation *utils.CodeBlockLocation
@@ -181,7 +215,7 @@ func (s *StatementsBlock) Location() *utils.CodeBlockLocation {
 		EndLocation: s.Statements[len(s.Statements)-1].Location().EndLocation}
 }
 
-func (s *StatementsBlock) Dump() string { return "" }
+func (s *StatementsBlock) Dump(identationLevel int) string { return "" }
 
 type VarStatement struct {
 	// location of 'var'
@@ -195,9 +229,9 @@ func (v *VarStatement) Location() *utils.CodeBlockLocation {
 	return &utils.CodeBlockLocation{StartLocation: v.startLocation,
 		EndLocation: v.value.Location().EndLocation}
 }
-func (v *VarStatement) statementNode()     {}
-func (v *VarStatement) topLevelStatement() {}
-func (v *VarStatement) Dump() string       { return "" }
+func (v *VarStatement) statementNode()                  {}
+func (v *VarStatement) topLevelStatement()              {}
+func (v *VarStatement) Dump(identationLevel int) string { return "" }
 
 type ReturnStatement struct {
 	// location of 'return'
@@ -216,8 +250,8 @@ func (r *ReturnStatement) Location() *utils.CodeBlockLocation {
 		EndLocation: r.ReturnValue.Location().EndLocation}
 }
 
-func (r *ReturnStatement) statementNode() {}
-func (r *ReturnStatement) Dump() string   { return "" }
+func (r *ReturnStatement) statementNode()                  {}
+func (r *ReturnStatement) Dump(identationLevel int) string { return "" }
 
 type PrefixExpression struct {
 	// location of operator
@@ -232,9 +266,9 @@ func (p *PrefixExpression) Location() *utils.CodeBlockLocation {
 		EndLocation: p.Expression.Location().EndLocation}
 }
 
-func (p *PrefixExpression) expressionNode() {}
-func (p *PrefixExpression) statementNode()  {}
-func (p *PrefixExpression) Dump() string    { return "" }
+func (p *PrefixExpression) expressionNode()                 {}
+func (p *PrefixExpression) statementNode()                  {}
+func (p *PrefixExpression) Dump(identationLevel int) string { return "" }
 
 // infix_expression = left operator right .
 type InfixExpression struct {
@@ -248,9 +282,9 @@ func (i *InfixExpression) Location() *utils.CodeBlockLocation {
 		EndLocation: i.Right.Location().EndLocation}
 }
 
-func (i *InfixExpression) expressionNode() {}
-func (i *InfixExpression) statementNode()  {}
-func (i *InfixExpression) Dump() string    { return "" }
+func (i *InfixExpression) expressionNode()                 {}
+func (i *InfixExpression) statementNode()                  {}
+func (i *InfixExpression) Dump(identationLevel int) string { return "" }
 
 type CallExpression struct {
 	Function  Expression
@@ -265,9 +299,9 @@ func (c *CallExpression) Location() *utils.CodeBlockLocation {
 		EndLocation: c.EndLocation}
 }
 
-func (c *CallExpression) expressionNode() {}
-func (c *CallExpression) statementNode()  {}
-func (c *CallExpression) Dump() string    { return "" }
+func (c *CallExpression) expressionNode()                 {}
+func (c *CallExpression) statementNode()                  {}
+func (c *CallExpression) Dump(identationLevel int) string { return "" }
 
 type Name struct {
 	location *utils.CodeBlockLocation
@@ -276,7 +310,7 @@ type Name struct {
 
 func (n *Name) Location() *utils.CodeBlockLocation { return n.location }
 func (n *Name) expressionNode()                    {}
-func (n *Name) Dump() string                       { return "" }
+func (n *Name) Dump(identationLevel int) string    { return "" }
 
 type BooleanLiteral struct {
 	TokenLocation *utils.CodeBlockLocation
@@ -286,7 +320,7 @@ type BooleanLiteral struct {
 func (b *BooleanLiteral) Location() *utils.CodeBlockLocation { return b.TokenLocation }
 func (b *BooleanLiteral) expressionNode()                    {}
 func (b *BooleanLiteral) statementNode()                     {}
-func (b *BooleanLiteral) Dump() string                       { return "" }
+func (b *BooleanLiteral) Dump(identationLevel int) string    { return "" }
 
 type StringLiteral struct {
 	TokenLocation *utils.CodeBlockLocation
@@ -296,7 +330,7 @@ type StringLiteral struct {
 func (s *StringLiteral) Location() *utils.CodeBlockLocation { return s.TokenLocation }
 func (s *StringLiteral) expressionNode()                    {}
 func (s *StringLiteral) statementNode()                     {}
-func (s *StringLiteral) Dump() string                       { return "" }
+func (s *StringLiteral) Dump(identationLevel int) string    { return "" }
 
 type ArrayLiteral struct {
 	location *utils.CodeBlockLocation
@@ -305,7 +339,7 @@ type ArrayLiteral struct {
 
 func (a *ArrayLiteral) Location() *utils.CodeBlockLocation { return a.location }
 func (a *ArrayLiteral) expressionNode()                    {}
-func (a *ArrayLiteral) Dump() string                       { return "" }
+func (a *ArrayLiteral) Dump(identationLevel int) string    { return "" }
 
 type IndexExpression struct {
 	Left  Expression
@@ -320,9 +354,9 @@ func (i *IndexExpression) Location() *utils.CodeBlockLocation {
 		EndLocation: i.EndLocation}
 }
 
-func (i *IndexExpression) expressionNode() {}
-func (i *IndexExpression) statementNode()  {}
-func (i *IndexExpression) Dump() string    { return "" }
+func (i *IndexExpression) expressionNode()                 {}
+func (i *IndexExpression) statementNode()                  {}
+func (i *IndexExpression) Dump(identationLevel int) string { return "" }
 
 type MapLiteral struct {
 	location *utils.CodeBlockLocation
@@ -334,7 +368,7 @@ type MapLiteral struct {
 
 func (m *MapLiteral) Location() *utils.CodeBlockLocation { return m.location }
 func (m *MapLiteral) expressionNode()                    {}
-func (m *MapLiteral) Dump() string                       { return "" }
+func (m *MapLiteral) Dump(identationLevel int) string    { return "" }
 
 type PrimaryType struct {
 	Token *lexer.Token
@@ -342,8 +376,12 @@ type PrimaryType struct {
 
 func (p *PrimaryType) Location() *utils.CodeBlockLocation { return p.Token.Location }
 func (p *PrimaryType) typeNode()                          {}
-func (p *PrimaryType) Dump() string {
-	return fmt.Sprintf("PrimaryType(%s)", lexer.DumpTokenKind(p.Token.Kind))
+func (p *PrimaryType) Dump(identationLevel int) string {
+	d := lexer.DumpTokenKind(p.Token.Kind)
+	return fmt.Sprintf(
+		"PrimaryType(%s)",
+		d[:len(d)-8], // remove "... keyword" at the end
+	)
 }
 
 type PointerType struct {
@@ -358,8 +396,8 @@ func (p *PointerType) Location() *utils.CodeBlockLocation {
 
 func (p *PointerType) typeNode() {}
 
-func (p *PointerType) Dump() string {
-	return fmt.Sprintf("PointerType(%s)", p.Type.Dump())
+func (p *PointerType) Dump(identationLevel int) string {
+	return fmt.Sprintf("PointerType(%s)", p.Type.Dump(identationLevel))
 }
 
 type ArrayType struct {
@@ -374,8 +412,8 @@ func (a *ArrayType) Location() *utils.CodeBlockLocation {
 
 func (a *ArrayType) typeNode() {}
 
-func (a *ArrayType) Dump() string {
-	return fmt.Sprintf("ArrayType(%s)", a.Type.Dump())
+func (a *ArrayType) Dump(identationLevel int) string {
+	return fmt.Sprintf("ArrayType(%s)", a.Type.Dump(identationLevel))
 }
 
 type CustomType struct {
@@ -385,12 +423,12 @@ type CustomType struct {
 
 func (c *CustomType) Location() *utils.CodeBlockLocation { return c.TypeLocation }
 func (c *CustomType) typeNode()                          {}
-func (c *CustomType) Dump() string {
+func (c *CustomType) Dump(identationLevel int) string {
 	return fmt.Sprintf("CustomType(%s)", c.Name)
 }
 
-func addIdentation(tabLevel int, stringBuilder *strings.Builder) {
-	for i := 0; i < tabLevel; i++ {
+func addIdentation(identationLevel int, stringBuilder *strings.Builder) {
+	for i := 0; i < identationLevel; i++ {
 		stringBuilder.WriteString("\t")
 	}
 }

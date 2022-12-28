@@ -28,33 +28,51 @@ import (
 )
 
 type CodeProblemHandler struct {
+	Ok       bool
 	problems []*CodeProblem
 }
 
 func NewCodeProblemHandler() *CodeProblemHandler {
 	return &CodeProblemHandler{
+		Ok:       true,
 		problems: []*CodeProblem{},
 	}
 }
 
 func (h *CodeProblemHandler) AddCodeProblem(problem *CodeProblem) {
+	if problem.critical {
+		h.Ok = false
+	}
+
 	h.problems = append(h.problems, problem)
 }
 
 func (h *CodeProblemHandler) printError(problem *CodeProblem) {
-	fmt.Fprintf(os.Stderr, "! err[%d] at `%s` (%d:%d-%d:%d): %s\n",
-		problem.code, problem.location.StartLocation.Filepath,
-		problem.location.StartLocation.Line, problem.location.StartLocation.Column,
-		problem.location.EndLocation.Line, problem.location.EndLocation.Column,
-		fmt.Sprintf(error_messages[problem.code], problem.ctx...))
+	if problem.global {
+		fmt.Fprintf(os.Stderr, "💥 err[%d]: %s\n",
+			problem.code,
+			fmt.Sprintf(error_messages[problem.code], problem.ctx...))
+	} else {
+		fmt.Fprintf(os.Stderr, "💥 err[%d] at `%s` (%d:%d-%d:%d): %s\n",
+			problem.code, problem.location.StartLocation.Filepath,
+			problem.location.StartLocation.Line, problem.location.StartLocation.Column,
+			problem.location.EndLocation.Line, problem.location.EndLocation.Column,
+			fmt.Sprintf(error_messages[problem.code], problem.ctx...))
+	}
 }
 
 func (h *CodeProblemHandler) printWarning(problem *CodeProblem) {
-	fmt.Fprintf(os.Stderr, "? warn[%d] at `%s` (%d:%d-%d:%d): %s\n",
-		problem.code, problem.location.StartLocation.Filepath,
-		problem.location.StartLocation.Line, problem.location.StartLocation.Column,
-		problem.location.EndLocation.Line, problem.location.EndLocation.Column,
-		fmt.Sprintf(warning_messages[problem.code], problem.ctx...))
+	if problem.global {
+		fmt.Fprintf(os.Stderr, "⚠ warn[%d]: %s\n",
+			problem.code,
+			fmt.Sprintf(warning_messages[problem.code], problem.ctx...))
+	} else {
+		fmt.Fprintf(os.Stderr, "⚠ warn[%d] at `%s` (%d:%d-%d:%d): %s\n",
+			problem.code, problem.location.StartLocation.Filepath,
+			problem.location.StartLocation.Line, problem.location.StartLocation.Column,
+			problem.location.EndLocation.Line, problem.location.EndLocation.Column,
+			fmt.Sprintf(warning_messages[problem.code], problem.ctx...))
+	}
 }
 
 func (h *CodeProblemHandler) printProblem(problem *CodeProblem) {
@@ -68,5 +86,14 @@ func (h *CodeProblemHandler) printProblem(problem *CodeProblem) {
 func (h *CodeProblemHandler) PrintProblems() {
 	for _, problem := range h.problems {
 		h.printProblem(problem)
+	}
+}
+
+func (h *CodeProblemHandler) PrintDiagnostics() {
+	h.PrintProblems()
+
+	fmt.Fprintf(os.Stderr, "\n")
+	if !h.Ok {
+		fmt.Fprintf(os.Stderr, "error: aborting due to previous error(-s)\n")
 	}
 }

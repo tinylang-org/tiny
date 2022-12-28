@@ -22,27 +22,56 @@
 
 package utils
 
+// CodeProblem describes error/warning happened to be in code.
 type CodeProblem struct {
+	// If true, it is error, if false, it is warning.
 	critical bool
+
+	// Location of the problem.
 	location *CodeBlockLocation
-	code     int
-	ctx      []interface{}
+
+	// If error is global (global = true) it is not attached to concrete location and file.
+	global bool
+
+	// Code of the problem.
+	code int
+
+	// Context. (vargs)
+	ctx []interface{}
 }
 
-func NewWarning(location *CodeBlockLocation, code int, ctx []interface{}) *CodeProblem {
-	return &CodeProblem{
-		critical: false,
-		location: location,
-		code:     code,
-		ctx:      ctx,
+func NewLocalProblem(global bool, critical bool, location *CodeBlockLocation,
+	code int, ctx []interface{}) *CodeProblem {
+	if global {
+		return &CodeProblem{
+			critical: critical,
+			code:     code,
+			ctx:      ctx,
+			global:   true,
+		}
+	} else {
+		return &CodeProblem{
+			critical: critical,
+			location: location,
+			code:     code,
+			ctx:      ctx,
+			global:   false,
+		}
 	}
 }
 
-func NewError(location *CodeBlockLocation, code int, ctx []interface{}) *CodeProblem {
-	return &CodeProblem{
-		critical: true,
-		location: location,
-		code:     code,
-		ctx:      ctx,
-	}
+func NewLocalWarning(location *CodeBlockLocation, code int, ctx []interface{}) *CodeProblem {
+	return NewLocalProblem(false, false, location, code, ctx)
+}
+
+func NewLocalError(location *CodeBlockLocation, code int, ctx []interface{}) *CodeProblem {
+	return NewLocalProblem(false, true, location, code, ctx)
+}
+
+func NewGlobalWarning(code int, ctx []interface{}) *CodeProblem {
+	return NewLocalProblem(true, false, nil, code, ctx)
+}
+
+func NewGlobalError(code int, ctx []interface{}) *CodeProblem {
+	return NewLocalProblem(true, true, nil, code, ctx)
 }

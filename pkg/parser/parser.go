@@ -580,13 +580,13 @@ func (p *Parser) parseExpressionList(endTokenKind int) ([]ast.Expression, *utils
 }
 
 func (p *Parser) addUnexpectedCurrentTokenError() {
-	p.problem_handler.AddCodeProblem(utils.NewError(p.currentToken.Location.Copy(),
+	p.problem_handler.AddCodeProblem(utils.NewLocalError(p.currentToken.Location.Copy(),
 		utils.UnexpectedToken2Err, []interface{}{
 			lexer.DumpTokenKind(p.currentToken.Kind)}))
 }
 
 func (p *Parser) addUnexpectedPeekTokenError() {
-	p.problem_handler.AddCodeProblem(utils.NewError(p.peekToken.Location.Copy(),
+	p.problem_handler.AddCodeProblem(utils.NewLocalError(p.peekToken.Location.Copy(),
 		utils.UnexpectedToken2Err, []interface{}{
 			lexer.DumpTokenKind(p.peekToken.Kind)}))
 }
@@ -595,7 +595,7 @@ func (p *Parser) expectCurrent(tokenKind int) bool {
 	if p.currentTokenIs(tokenKind) {
 		return true
 	} else {
-		p.problem_handler.AddCodeProblem(utils.NewError(p.currentToken.Location.Copy(),
+		p.problem_handler.AddCodeProblem(utils.NewLocalError(p.currentToken.Location.Copy(),
 			utils.UnexpectedTokenErr, []interface{}{lexer.DumpTokenKind(tokenKind),
 				lexer.DumpTokenKind(p.currentToken.Kind)}))
 		return false
@@ -616,7 +616,7 @@ func (p *Parser) expectPeek(tokenKind int) bool {
 		p.advance()
 		return true
 	} else {
-		p.problem_handler.AddCodeProblem(utils.NewError(p.peekToken.Location.Copy(),
+		p.problem_handler.AddCodeProblem(utils.NewLocalError(p.peekToken.Location.Copy(),
 			utils.UnexpectedTokenErr, []interface{}{lexer.DumpTokenKind(tokenKind),
 				lexer.DumpTokenKind(p.peekToken.Kind)}))
 		return false

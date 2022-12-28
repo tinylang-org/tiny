@@ -25,6 +25,7 @@ package utils
 const (
 	IllegalNullCharacterErr = iota
 	IllegalUTF8EncodingErr
+	UnableToReadFileErr
 	UnexpectedCharacterErr
 	NotClosedWrappedIdentifierErr
 	NotClosedMultiLineCommentErr
@@ -48,6 +49,7 @@ const (
 var error_messages = map[int]string{
 	IllegalNullCharacterErr:                   "illegal null character",
 	IllegalUTF8EncodingErr:                    "illegal UTF-8 encoding",
+	UnableToReadFileErr:                       "unable to read file %s",
 	UnexpectedCharacterErr:                    "unexpected character `%c`",
 	NotClosedWrappedIdentifierErr:             "not closed wrapped identifier",
 	NotClosedMultiLineCommentErr:              "not closed multiline comment",

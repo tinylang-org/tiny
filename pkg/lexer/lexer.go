@@ -29,6 +29,31 @@ import (
 	"github.com/tinylang-org/tiny/pkg/utils"
 )
 
+// Lexer struct is state machine, main goal of which is to scan source code and convert
+// it to tokens.
+// To get them we can use NextToken(), which returns the token in current "location" (function
+// always returns different values).
+// and increases location in code (or cursor) until it finds next token.
+// Last token in the source file is EOF.
+//
+//  // pub fun main() { ...
+//  // ^
+//  // |
+//  // "cursor" after lexer is initialized
+//
+// then we call NextToken() function and get Token(Literal="pub", Kind=PubKeywordTokenKind)
+// while the function is executed cursor is moved to the next token:
+//
+//  // pub fun main() { ..
+//  //     ^
+//  //     |
+//  //    "cursor" after NextToken() is called
+//
+// then when we call NextToken() again, the return is Token(Literal="fun",
+// Kind=FunKeywordTokenKind)
+//
+// when the cursor is at the end of the source code, NextToken() function will
+// return Token(Literal="0", Kind=EOFTokenKind).
 type Lexer struct {
 	filepath     string
 	source       []byte
@@ -70,14 +95,14 @@ func (l *Lexer) decodeRune() {
 		switch {
 		case r == 0:
 			l.problemHandler.AddCodeProblem(
-				utils.NewError(
+				utils.NewLocalError(
 					utils.NewOneCodePointBlockLocation(l.currentLocation),
 					utils.IllegalNullCharacterErr, []interface{}{}))
 		case r >= utf8.RuneSelf:
 			r, offset = utf8.DecodeRune(l.source[l.currentLocation.Index:])
 			if r == utf8.RuneError && offset == 1 {
 				l.problemHandler.AddCodeProblem(
-					utils.NewError(
+					utils.NewLocalError(
 						utils.NewOneCodePointBlockLocation(l.currentLocation),
 						utils.IllegalUTF8EncodingErr, []interface{}{}))
 			}
@@ -103,6 +128,12 @@ func (l *Lexer) advance() {
 	l.decodeRune()
 }
 
+// Skip whitespaces block.
+//   var  \t   a: i32 = 3;
+//     ▲       ▲
+//     │       │
+//     │       ending here
+//     starting from here
 func (l *Lexer) skipWhitespaces() {
 	for l.currentCodePoint == ' ' ||
 		l.currentCodePoint == '\t' ||
@@ -136,6 +167,8 @@ func isIdentifierStart(cp rune) bool {
 		cp >= utf8.RuneSelf && unicode.IsLetter(cp)
 }
 
+// Binary search throw keyword list and try to find a keyword.
+// If not found return -1.
 func binarySearchKeyword(keyword string) int {
 	leftBound := 0
 	rightBound := keywordsAmount - 1
@@ -157,6 +190,7 @@ func binarySearchKeyword(keyword string) int {
 	return -1
 }
 
+// Return a byte that is located after the current one in source text.
 func (l *Lexer) peekByte() byte {
 	if l.currentLocation.Index+1 < l.sourceLength {
 		return l.source[l.currentLocation.Index+1]
@@ -205,6 +239,12 @@ func invalidSeparator(x string) int {
 	return -1
 }
 
+// Scan digits sequence.
+//   2938487198.34
+//   ▲         ▲
+//   │         │
+//   │         digits() is stopped
+//   digits() is called
 func (l *Lexer) digits(base int, invalid *int) (digitSeparator int) {
 	if base <= 10 {
 		max := rune('0' + base)
@@ -270,7 +310,7 @@ func (l *Lexer) nextNumberToken() *Token {
 		tokenKind = FloatTokenKind
 		if prefix == 'o' || prefix == 'b' {
 			l.problemHandler.AddCodeProblem(
-				utils.NewError(
+				utils.NewLocalError(
 					&utils.CodeBlockLocation{StartLocation: startLocation,
 						EndLocation: l.currentLocation.Copy()},
 					utils.InvalidRadixPointErr, []interface{}{numberLiteralName(prefix)}))
@@ -281,7 +321,7 @@ func (l *Lexer) nextNumberToken() *Token {
 
 	if digitSeparator&1 == 0 {
 		l.problemHandler.AddCodeProblem(
-			utils.NewError(
+			utils.NewLocalError(
 				&utils.CodeBlockLocation{StartLocation: startLocation,
 					EndLocation: l.currentLocation.Copy()},
 				utils.HasNoDigitsErr, []interface{}{numberLiteralName(prefix)}))
@@ -292,14 +332,14 @@ func (l *Lexer) nextNumberToken() *Token {
 		switch {
 		case e == 'e' && prefix != 0 && prefix != '0':
 			l.problemHandler.AddCodeProblem(
-				utils.NewError(
+				utils.NewLocalError(
 					&utils.CodeBlockLocation{StartLocation: startLocation,
 						EndLocation: l.currentLocation.Copy()},
 					utils.ExponentRequiresDecimalMantissaErr,
 					[]interface{}{l.currentCodePoint}))
 		case e == 'p' && prefix != 'x':
 			l.problemHandler.AddCodeProblem(
-				utils.NewError(
+				utils.NewLocalError(
 					&utils.CodeBlockLocation{StartLocation: startLocation,
 						EndLocation: l.currentLocation.Copy()},
 					utils.ExponentRequiresHexadecimalMantissaErr,
@@ -314,7 +354,7 @@ func (l *Lexer) nextNumberToken() *Token {
 		digitSeparator |= ds
 		if ds&1 == 0 {
 			l.problemHandler.AddCodeProblem(
-				utils.NewError(
+				utils.NewLocalError(
 					&utils.CodeBlockLocation{StartLocation: startLocation,
 						EndLocation: l.currentLocation.Copy()},
 					utils.ExponentHasNoDigitsErr,
@@ -322,7 +362,7 @@ func (l *Lexer) nextNumberToken() *Token {
 		}
 	} else if prefix == 'x' && tokenKind == FloatTokenKind {
 		l.problemHandler.AddCodeProblem(
-			utils.NewError(
+			utils.NewLocalError(
 				&utils.CodeBlockLocation{StartLocation: startLocation,
 					EndLocation: l.currentLocation.Copy()},
 				utils.HexadecimalMantissaRequiresPExponentErr,
@@ -338,7 +378,7 @@ func (l *Lexer) nextNumberToken() *Token {
 	buffer := string(l.source[startLocation.Index:l.currentLocation.Index])
 	if tokenKind == IntTokenKind && invalid >= 0 {
 		l.problemHandler.AddCodeProblem(
-			utils.NewError(
+			utils.NewLocalError(
 				&utils.CodeBlockLocation{StartLocation: startLocation,
 					EndLocation: l.currentLocation.Copy()},
 				utils.InvalidDigitErr,
@@ -347,7 +387,7 @@ func (l *Lexer) nextNumberToken() *Token {
 	if digitSeparator&2 != 0 {
 		if i := invalidSeparator(buffer); i >= 0 {
 			l.problemHandler.AddCodeProblem(
-				utils.NewError(
+				utils.NewLocalError(
 					&utils.CodeBlockLocation{StartLocation: startLocation,
 						EndLocation: l.currentLocation.Copy()},
 					utils.UnderscoreMustSeparateSuccessiveDigitsErr,
@@ -399,7 +439,7 @@ func (l *Lexer) nextMultiLineCommentToken() *Token {
 
 		if l.currentCodePoint == -1 {
 			l.problemHandler.AddCodeProblem(
-				utils.NewError(
+				utils.NewLocalError(
 					utils.NewOneCodePointBlockLocation(l.currentLocation),
 					utils.NotClosedMultiLineCommentErr, []interface{}{l.currentCodePoint}))
 			return &Token{Kind: CommentTokenKind,
@@ -455,7 +495,7 @@ func (l *Lexer) nextWrappedIdentifierToken() *Token {
 				EndLocation: l.currentLocation.Copy()}
 
 			l.problemHandler.AddCodeProblem(
-				utils.NewError(
+				utils.NewLocalError(
 					location,
 					utils.NotClosedWrappedIdentifierErr, []interface{}{}))
 
@@ -510,7 +550,7 @@ func (l *Lexer) scanEscape(quote rune) bool {
 		}
 
 		l.problemHandler.AddCodeProblem(
-			utils.NewError(
+			utils.NewLocalError(
 				utils.NewOneCodePointBlockLocation(l.currentLocation),
 				err, []interface{}{}))
 
@@ -523,12 +563,12 @@ func (l *Lexer) scanEscape(quote rune) bool {
 		if d >= base {
 			if l.currentCodePoint == -1 {
 				l.problemHandler.AddCodeProblem(
-					utils.NewError(
+					utils.NewLocalError(
 						utils.NewOneCodePointBlockLocation(l.currentLocation),
 						utils.EscapeSequenceNotTerminatedErr, []interface{}{}))
 			} else {
 				l.problemHandler.AddCodeProblem(
-					utils.NewError(
+					utils.NewLocalError(
 						utils.NewOneCodePointBlockLocation(l.currentLocation),
 						utils.IllegalCharacterInEscapeSequenceErr,
 						[]interface{}{l.currentCodePoint}))
@@ -543,7 +583,7 @@ func (l *Lexer) scanEscape(quote rune) bool {
 
 	if x > max || 0xD800 <= x && x < 0xE000 {
 		l.problemHandler.AddCodeProblem(
-			utils.NewError(
+			utils.NewLocalError(
 				utils.NewOneCodePointBlockLocation(l.currentLocation),
 				utils.EscapeSequenceIsInvalidUTF8CodePointErr,
 				[]interface{}{}))
@@ -564,7 +604,7 @@ func (l *Lexer) nextStringToken() *Token {
 				EndLocation: l.currentLocation.Copy()}
 
 			l.problemHandler.AddCodeProblem(
-				utils.NewError(
+				utils.NewLocalError(
 					location, utils.NotClosedStringErr, []interface{}{}))
 
 			return &Token{Kind: StringTokenKind,
@@ -591,6 +631,10 @@ func (l *Lexer) nextStringToken() *Token {
 			EndLocation: l.currentLocation.Copy()}}
 }
 
+// Scan the next token and return it. If there scanning error it will
+// be added to l.diagnostics. If there's unexpected character InvalidTokenKind will
+// be returned. If another type of error will be occured in the process
+// of scanning, then lexer will try to return a valid token.
 func (l *Lexer) NextToken() *Token {
 	l.skipWhitespaces()
 
@@ -738,7 +782,7 @@ func (l *Lexer) NextToken() *Token {
 			result = l.characterToken(DotTokenKind, ".")
 		} else {
 			l.problemHandler.AddCodeProblem(
-				utils.NewError(
+				utils.NewLocalError(
 					utils.NewOneCodePointBlockLocation(l.currentLocation),
 					utils.UnexpectedCharacterErr, []interface{}{l.currentCodePoint}))
 			result = l.characterToken(InvalidTokenKind, string(l.currentCodePoint))

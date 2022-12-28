@@ -26,7 +26,6 @@ import (
 	"bufio"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -42,10 +41,7 @@ var parserPromptCmd = &cobra.Command{
 		reader := bufio.NewReader(os.Stdin)
 
 		for {
-			line, err := reader.ReadString('\n')
-			if err != nil {
-				log.Fatal(err)
-			}
+			line, _ := reader.ReadString('\n')
 
 			ph := utils.NewCodeProblemHandler()
 			p := parser.NewParser("<repl>", []byte(line), ph)
@@ -66,10 +62,7 @@ var lexPromptCmd = &cobra.Command{
 		reader := bufio.NewReader(os.Stdin)
 
 		for {
-			line, err := reader.ReadString('\n')
-			if err != nil {
-				log.Fatal(err)
-			}
+			line, _ := reader.ReadString('\n')
 
 			ph := utils.NewCodeProblemHandler()
 			l := lexer.NewLexer("<repl>", []byte(line), ph)
@@ -92,6 +85,8 @@ var lexCmd = &cobra.Command{
 	Use:   "lex",
 	Short: "Lexer",
 	Run: func(cmd *cobra.Command, args []string) {
+		gh := utils.NewCodeProblemHandler()
+
 		if len(args) != 1 {
 			fmt.Println("required format: spline lex <filename>")
 			os.Exit(1)
@@ -99,7 +94,9 @@ var lexCmd = &cobra.Command{
 
 		fileContent, err := ioutil.ReadFile(args[0])
 		if err != nil {
-			log.Fatal(err)
+			gh.AddCodeProblem(utils.NewGlobalError(utils.UnableToReadFileErr, []interface{}{args[0]}))
+			gh.PrintDiagnostics()
+			os.Exit(1)
 		}
 
 		ph := utils.NewCodeProblemHandler()
@@ -114,7 +111,11 @@ var lexCmd = &cobra.Command{
 			}
 		}
 
-		ph.PrintProblems()
+		ph.PrintDiagnostics()
+
+		if !ph.Ok {
+			os.Exit(1)
+		}
 	},
 }
 

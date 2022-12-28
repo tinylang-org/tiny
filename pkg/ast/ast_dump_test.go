@@ -83,8 +83,8 @@ func TestFunctionArgument(t *testing.T) {
 		Name: "a",
 		Type: &PrimaryType{
 			Token: &lexer.Token{
-				Kind:    lexer.Int16KeywordTokenKind,
-				Literal: "int16",
+				Kind:    lexer.I16KeywordTokenKind,
+				Literal: "i16",
 				Location: &utils.CodeBlockLocation{
 					StartLocation: &utils.CodePointLocation{
 						Filepath: "test.tl",
@@ -119,7 +119,7 @@ func TestFunctionArgument(t *testing.T) {
 
 	assert.Equal(t, `FunctionArgument(
 	name=a,
-	type=PrimaryType(int16),
+	type=PrimaryType(i16),
 	location=CBLocation(CPLocation(test.tl 0 1 0) CPLocation(test.tl 7 1 7))
 )`, ast.Dump(0))
 }

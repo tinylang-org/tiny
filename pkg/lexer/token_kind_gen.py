@@ -23,9 +23,9 @@
 import subprocess
 
 keywords_list = ["break", "return", "case", "const", "continue", "default", "else",
-                 "for", "fun", "if", "import", "int16", "int32",
-                 "int64", "int8", "namespace", "struct", "switch", "uint16",
-                 "uint32", "uint64", "uint8", "var", "pub"]
+                 "for", "fun", "if", "import", "i16", "i32",
+                 "i64", "i8", "namespace", "struct", "switch", "u16",
+                 "u32", "u64", "u8", "var", "pub"]
 keywords_list.sort()
 
 dumped_keywords_list = keywords_list.__str__(

@@ -68,21 +68,21 @@ const (
 	ElseKeywordTokenKind
 	ForKeywordTokenKind
 	FunKeywordTokenKind
+	I16KeywordTokenKind
+	I32KeywordTokenKind
+	I64KeywordTokenKind
+	I8KeywordTokenKind
 	IfKeywordTokenKind
 	ImportKeywordTokenKind
-	Int16KeywordTokenKind
-	Int32KeywordTokenKind
-	Int64KeywordTokenKind
-	Int8KeywordTokenKind
 	NamespaceKeywordTokenKind
 	PubKeywordTokenKind
 	ReturnKeywordTokenKind
 	StructKeywordTokenKind
 	SwitchKeywordTokenKind
-	Uint16KeywordTokenKind
-	Uint32KeywordTokenKind
-	Uint64KeywordTokenKind
-	Uint8KeywordTokenKind
+	U16KeywordTokenKind
+	U32KeywordTokenKind
+	U64KeywordTokenKind
+	U8KeywordTokenKind
 	VarKeywordTokenKind
 
 	InvalidTokenKind
@@ -142,21 +142,21 @@ var dumpedKinds = map[int]string{
 	ElseKeywordTokenKind:      "else keyword",
 	ForKeywordTokenKind:       "for keyword",
 	FunKeywordTokenKind:       "fun keyword",
+	I16KeywordTokenKind:       "i16 keyword",
+	I32KeywordTokenKind:       "i32 keyword",
+	I64KeywordTokenKind:       "i64 keyword",
+	I8KeywordTokenKind:        "i8 keyword",
 	IfKeywordTokenKind:        "if keyword",
 	ImportKeywordTokenKind:    "import keyword",
-	Int16KeywordTokenKind:     "int16 keyword",
-	Int32KeywordTokenKind:     "int32 keyword",
-	Int64KeywordTokenKind:     "int64 keyword",
-	Int8KeywordTokenKind:      "int8 keyword",
 	NamespaceKeywordTokenKind: "namespace keyword",
 	PubKeywordTokenKind:       "pub keyword",
 	ReturnKeywordTokenKind:    "return keyword",
 	StructKeywordTokenKind:    "struct keyword",
 	SwitchKeywordTokenKind:    "switch keyword",
-	Uint16KeywordTokenKind:    "uint16 keyword",
-	Uint32KeywordTokenKind:    "uint32 keyword",
-	Uint64KeywordTokenKind:    "uint64 keyword",
-	Uint8KeywordTokenKind:     "uint8 keyword",
+	U16KeywordTokenKind:       "u16 keyword",
+	U32KeywordTokenKind:       "u32 keyword",
+	U64KeywordTokenKind:       "u64 keyword",
+	U8KeywordTokenKind:        "u8 keyword",
 	VarKeywordTokenKind:       "var keyword",
 
 	InvalidTokenKind: "invalid token",
@@ -167,7 +167,7 @@ func DumpTokenKind(k int) string {
 }
 
 var keywords = []string{
-	"break", "case", "const", "continue", "default", "else", "for", "fun", "if", "import", "int16", "int32", "int64", "int8", "namespace", "pub", "return", "struct", "switch", "uint16", "uint32", "uint64", "uint8", "var",
+	"break", "case", "const", "continue", "default", "else", "for", "fun", "i16", "i32", "i64", "i8", "if", "import", "namespace", "pub", "return", "struct", "switch", "u16", "u32", "u64", "u8", "var",
 }
 
 var keywordsAmount = len(keywords)

@@ -20,6 +20,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+// Package scanner implements a scanner for Tinysource text.
+// It takes a []byte as source which can then be tokenized
+// through repeated calls to the NextToken method.
 package lexer
 
 import (
@@ -36,18 +39,18 @@ import (
 // and increases location in code (or cursor) until it finds next token.
 // Last token in the source file is EOF.
 //
-//  // pub fun main() { ...
-//  // ^
-//  // |
-//  // "cursor" after lexer is initialized
+//  pub fun main() { ...
+//  ^
+//  |
+//  "cursor" after lexer is initialized
 //
 // then we call NextToken() function and get Token(Literal="pub", Kind=PubKeywordTokenKind)
 // while the function is executed cursor is moved to the next token:
 //
-//  // pub fun main() { ..
-//  //     ^
-//  //     |
-//  //    "cursor" after NextToken() is called
+//  pub fun main() { ..
+//      ^
+//      |
+//     "cursor" after NextToken() is called
 //
 // then when we call NextToken() again, the return is Token(Literal="fun",
 // Kind=FunKeywordTokenKind)

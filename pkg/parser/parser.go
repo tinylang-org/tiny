@@ -20,6 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+// Package parser implements a parser for Tiny source files.
 package parser
 
 import (
@@ -336,21 +337,21 @@ func (p *Parser) parseStructureDeclaration(public bool) ast.TopLevelStatement {
 
 func (p *Parser) parseType() ast.Type {
 	switch p.currentToken.Kind {
-	case lexer.Int8KeywordTokenKind:
+	case lexer.I8KeywordTokenKind:
 		return &ast.PrimaryType{Token: p.currentToken}
-	case lexer.Int16KeywordTokenKind:
+	case lexer.I16KeywordTokenKind:
 		return &ast.PrimaryType{Token: p.currentToken}
-	case lexer.Int32KeywordTokenKind:
+	case lexer.I32KeywordTokenKind:
 		return &ast.PrimaryType{Token: p.currentToken}
-	case lexer.Int64KeywordTokenKind:
+	case lexer.I64KeywordTokenKind:
 		return &ast.PrimaryType{Token: p.currentToken}
-	case lexer.Uint8KeywordTokenKind:
+	case lexer.U8KeywordTokenKind:
 		return &ast.PrimaryType{Token: p.currentToken}
-	case lexer.Uint16KeywordTokenKind:
+	case lexer.U16KeywordTokenKind:
 		return &ast.PrimaryType{Token: p.currentToken}
-	case lexer.Uint32KeywordTokenKind:
+	case lexer.U32KeywordTokenKind:
 		return &ast.PrimaryType{Token: p.currentToken}
-	case lexer.Uint64KeywordTokenKind:
+	case lexer.U64KeywordTokenKind:
 		return &ast.PrimaryType{Token: p.currentToken}
 	case lexer.MulOpTokenKind:
 		return p.parsePointerType()

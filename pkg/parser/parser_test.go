@@ -57,45 +57,45 @@ func TestReturnStatement(t *testing.T) {
 
 func TestPrimaryType(t *testing.T) {
 	p := utils.NewCodeProblemHandler()
-	parser := NewParser("", []byte("int32"), p)
+	parser := NewParser("", []byte("i32"), p)
 	tp := parser.parseType()
-	assert.Equal(t, lexer.Int32KeywordTokenKind,
+	assert.Equal(t, lexer.I32KeywordTokenKind,
 		tp.(*ast.PrimaryType).Token.Kind)
 	p.PrintProblems()
 }
 
 func TestPointerType(t *testing.T) {
 	p := utils.NewCodeProblemHandler()
-	parser := NewParser("", []byte("*int32"), p)
+	parser := NewParser("", []byte("*i32"), p)
 	tp := parser.parseType()
-	assert.Equal(t, lexer.Int32KeywordTokenKind,
+	assert.Equal(t, lexer.I32KeywordTokenKind,
 		tp.(*ast.PointerType).Type.(*ast.PrimaryType).Token.Kind)
 	p.PrintProblems()
 }
 
 func TestPointerType2(t *testing.T) {
 	p := utils.NewCodeProblemHandler()
-	parser := NewParser("", []byte("**int8"), p)
+	parser := NewParser("", []byte("**i8"), p)
 	tp := parser.parseType()
-	assert.Equal(t, lexer.Int8KeywordTokenKind,
+	assert.Equal(t, lexer.I8KeywordTokenKind,
 		tp.(*ast.PointerType).Type.(*ast.PointerType).Type.(*ast.PrimaryType).Token.Kind)
 	p.PrintProblems()
 }
 
 func TestArrayType(t *testing.T) {
 	p := utils.NewCodeProblemHandler()
-	parser := NewParser("", []byte("[]int8"), p)
+	parser := NewParser("", []byte("[]i8"), p)
 	tp := parser.parseType()
-	assert.Equal(t, lexer.Int8KeywordTokenKind,
+	assert.Equal(t, lexer.I8KeywordTokenKind,
 		tp.(*ast.ArrayType).Type.(*ast.PrimaryType).Token.Kind)
 	p.PrintProblems()
 }
 
 func TestArrayType2(t *testing.T) {
 	p := utils.NewCodeProblemHandler()
-	parser := NewParser("", []byte("*[]*int8"), p)
+	parser := NewParser("", []byte("*[]*i8"), p)
 	tp := parser.parseType()
-	assert.Equal(t, lexer.Int8KeywordTokenKind,
+	assert.Equal(t, lexer.I8KeywordTokenKind,
 		tp.(*ast.PointerType).Type.(*ast.ArrayType).Type.(*ast.PointerType).Type.(*ast.PrimaryType).Token.Kind)
 	p.PrintProblems()
 }

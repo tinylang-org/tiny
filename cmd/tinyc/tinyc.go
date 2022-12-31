@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/tinylang-org/tiny/pkg/lexer"
@@ -43,6 +44,7 @@ var parserPromptCmd = &cobra.Command{
 
 		for {
 			line, _ := reader.ReadString('\n')
+			line = strings.TrimRight(line, "\r\n")
 
 			lineBytes := []byte(line)
 
@@ -74,8 +76,8 @@ var lexPromptCmd = &cobra.Command{
 		for {
 			line, _ := reader.ReadString('\n')
 
+			line = strings.TrimRight(line, "\r\n")
 			lineBytes := []byte(line)
-			lineBytes = lineBytes[:len(lineBytes)-1]
 
 			ph := utils.NewCodeProblemHandler()
 			ph.SetSource(lineBytes)
@@ -191,6 +193,7 @@ var lexCmd = &cobra.Command{
 
 		ph.SetLineStartOffsets(l.LineStartOffsets)
 		ph.SetLineEndOffsets(l.LineEndOffsets)
+		ph.SetColorfulOutput()
 		ph.PrintDiagnostics()
 
 		if !ph.Ok {

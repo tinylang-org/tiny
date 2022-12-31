@@ -449,9 +449,9 @@ func (l *Lexer) nextMultiLineCommentToken() *Token {
 		if l.currentCodePoint == -1 {
 			l.problemHandler.AddCodeProblem(
 				utils.NewLocalError(
-					utils.NewOneCodePointBlockLocation(l.currentLocation),
-					utils.NotClosedMultiLineCommentErr,
-					l.currentCodePoint))
+					&utils.CodeBlockLocation{StartLocation: startLocation,
+						EndLocation: l.currentLocation.Copy()},
+					utils.NotClosedMultiLineCommentErr))
 			return &Token{Kind: CommentTokenKind,
 				Literal: string(l.source[startLocation.Index+2 : l.currentLocation.Index]),
 				Location: &utils.CodeBlockLocation{StartLocation: startLocation,
@@ -609,8 +609,16 @@ func (l *Lexer) nextStringToken() *Token {
 
 	for {
 		if l.currentCodePoint == '\n' || l.currentCodePoint == -1 {
+			var endLocation *utils.CodePointLocation
+
+			if l.currentCodePoint == '\n' {
+				endLocation = l.currentLocation.PreviousByteLocation()
+			} else {
+				endLocation = l.currentLocation.Copy()
+			}
+
 			location := &utils.CodeBlockLocation{StartLocation: startLocation,
-				EndLocation: l.currentLocation.PreviousByteLocation()}
+				EndLocation: endLocation}
 
 			l.problemHandler.AddCodeProblem(
 				utils.NewLocalError(

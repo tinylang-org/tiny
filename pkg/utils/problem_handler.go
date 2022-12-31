@@ -76,7 +76,6 @@ func (h *CodeProblemHandler) AddCodeProblem(problem *CodeProblem) {
 
 func (h *CodeProblemHandler) SetSource(source []byte) {
 	h.source = source
-	h.source = append(h.source, 0)
 }
 
 func (h *CodeProblemHandler) printFormattedCodeBlock(

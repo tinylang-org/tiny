@@ -31,6 +31,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tinylang-org/tiny/pkg/lexer"
 	"github.com/tinylang-org/tiny/pkg/parser"
+	"github.com/tinylang-org/tiny/pkg/repr"
 	"github.com/tinylang-org/tiny/pkg/utils"
 )
 
@@ -43,13 +44,22 @@ var parserPromptCmd = &cobra.Command{
 		for {
 			line, _ := reader.ReadString('\n')
 
+			lineBytes := []byte(line)
+
+			lineBytes = lineBytes[:len(lineBytes)-1]
+
 			ph := utils.NewCodeProblemHandler()
-			p := parser.NewParser("<repl>", []byte(line), ph)
+			ph.SetSource(lineBytes)
+
+			p := parser.NewParser("<repl>", lineBytes, ph)
 			unit := p.ParseProgramUnit()
 			if unit != nil {
-				fmt.Println(unit.Dump(0))
+				repr.Println(unit)
 			}
 
+			ph.SetLineStartOffsets(p.Lexer.LineStartOffsets)
+			ph.SetLineEndOffsets(p.Lexer.LineEndOffsets)
+			ph.SetColorfulOutput()
 			ph.PrintProblems()
 		}
 	},
@@ -64,8 +74,13 @@ var lexPromptCmd = &cobra.Command{
 		for {
 			line, _ := reader.ReadString('\n')
 
+			lineBytes := []byte(line)
+			lineBytes = lineBytes[:len(lineBytes)-1]
+
 			ph := utils.NewCodeProblemHandler()
-			l := lexer.NewLexer("<repl>", []byte(line), ph)
+			ph.SetSource(lineBytes)
+
+			l := lexer.NewLexer("<repl>", lineBytes, ph)
 			for {
 				token := l.NextToken()
 
@@ -76,7 +91,69 @@ var lexPromptCmd = &cobra.Command{
 				}
 			}
 
+			ph.SetLineStartOffsets(l.LineStartOffsets)
+			ph.SetLineEndOffsets(l.LineEndOffsets)
+			ph.SetColorfulOutput()
 			ph.PrintProblems()
+		}
+	},
+}
+
+var completionCmd = &cobra.Command{
+	Use:   "completion [bash|zsh|fish|powershell]",
+	Short: "Generate completion script",
+	Long: fmt.Sprintf(`To load completions:
+
+Bash:
+
+  $ source <(%[1]s completion bash)
+
+  # To load completions for each session, execute once:
+  # Linux:
+  $ %[1]s completion bash > /etc/bash_completion.d/%[1]s
+  # macOS:
+  $ %[1]s completion bash > $(brew --prefix)/etc/bash_completion.d/%[1]s
+
+Zsh:
+
+  # If shell completion is not already enabled in your environment,
+  # you will need to enable it.  You can execute the following once:
+
+  $ echo "autoload -U compinit; compinit" >> ~/.zshrc
+
+  # To load completions for each session, execute once:
+  $ %[1]s completion zsh > "${fpath[1]}/_%[1]s"
+
+  # You will need to start a new shell for this setup to take effect.
+
+fish:
+
+  $ %[1]s completion fish | source
+
+  # To load completions for each session, execute once:
+  $ %[1]s completion fish > ~/.config/fish/completions/%[1]s.fish
+
+PowerShell:
+
+  PS> %[1]s completion powershell | Out-String | Invoke-Expression
+
+  # To load completions for every new session, run:
+  PS> %[1]s completion powershell > %[1]s.ps1
+  # and source this file from your PowerShell profile.
+`, "completion"),
+	DisableFlagsInUseLine: true,
+	ValidArgs:             []string{"bash", "zsh", "fish", "powershell"},
+	Args:                  cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
+	Run: func(cmd *cobra.Command, args []string) {
+		switch args[0] {
+		case "bash":
+			cmd.Root().GenBashCompletion(os.Stdout)
+		case "zsh":
+			cmd.Root().GenZshCompletion(os.Stdout)
+		case "fish":
+			cmd.Root().GenFishCompletion(os.Stdout, true)
+		case "powershell":
+			cmd.Root().GenPowerShellCompletionWithDesc(os.Stdout)
 		}
 	},
 }
@@ -88,7 +165,7 @@ var lexCmd = &cobra.Command{
 		gh := utils.NewCodeProblemHandler()
 
 		if len(args) != 1 {
-			fmt.Println("required format: spline lex <filename>")
+			fmt.Println("required format: tinyc lex <filename>")
 			os.Exit(1)
 		}
 
@@ -100,6 +177,7 @@ var lexCmd = &cobra.Command{
 		}
 
 		ph := utils.NewCodeProblemHandler()
+		ph.SetSource(fileContent)
 		l := lexer.NewLexer(args[0], fileContent, ph)
 		for {
 			token := l.NextToken()
@@ -111,6 +189,8 @@ var lexCmd = &cobra.Command{
 			}
 		}
 
+		ph.SetLineStartOffsets(l.LineStartOffsets)
+		ph.SetLineEndOffsets(l.LineEndOffsets)
 		ph.PrintDiagnostics()
 
 		if !ph.Ok {
@@ -125,6 +205,7 @@ var rootCmd = &cobra.Command{
 }
 
 func main() {
+	rootCmd.AddCommand(completionCmd)
 	rootCmd.AddCommand(lexPromptCmd)
 	rootCmd.AddCommand(lexCmd)
 	rootCmd.AddCommand(parserPromptCmd)

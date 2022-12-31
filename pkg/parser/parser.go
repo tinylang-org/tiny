@@ -24,6 +24,7 @@
 package parser
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/tinylang-org/tiny/pkg/ast"
@@ -62,7 +63,7 @@ type Parser struct {
 	filepath string
 
 	problem_handler *utils.CodeProblemHandler
-	lexer           *lexer.Lexer
+	Lexer           *lexer.Lexer
 
 	prefixParseFunctions map[int]prefixParseFunction
 	infixParseFunctions  map[int]infixParseFunction
@@ -79,14 +80,17 @@ type (
 func NewParser(filepath string, source []byte,
 	problem_handler *utils.CodeProblemHandler) *Parser {
 	p := &Parser{filepath: filepath,
-		lexer: lexer.NewLexer(filepath, source, problem_handler)}
+		Lexer: lexer.NewLexer(filepath, source, problem_handler)}
 	p.problem_handler = problem_handler
 
 	p.prefixParseFunctions = make(map[int]prefixParseFunction)
-	p.infixParseFunctions = make(map[int]infixParseFunction)
 
 	p.registerPrefixFunction(lexer.BooleanTokenKind, p.parseBooleanLiteral)
 	p.registerPrefixFunction(lexer.StringTokenKind, p.parseStringLiteral)
+	p.registerPrefixFunction(lexer.OpenParentTokenKind, p.parseGroupedExpression)
+	p.registerPrefixFunction(lexer.OpenBracketTokenKind, p.parseArrayLiteral)
+
+	p.infixParseFunctions = make(map[int]infixParseFunction)
 
 	p.registerInfixFunction(lexer.PlusOpTokenKind, p.parseInfixExpression)
 	p.registerInfixFunction(lexer.MinusOpTokenKind, p.parseInfixExpression)
@@ -112,14 +116,23 @@ func NewParser(filepath string, source []byte,
 	return p
 }
 
+func (p *Parser) goUntilTheEnd() {
+	for p.currentToken.Kind != lexer.EOFTokenKind {
+		p.advance()
+	}
+}
+
 func (p *Parser) ParseProgramUnit() *ast.ProgramUnit {
 	namespace := p.parseNamespaceDecl()
 	if namespace == nil {
+		p.goUntilTheEnd()
 		return nil
 	}
 
 	imports := p.parseImports()
 	TLStatements := p.parseTopLevelStatementList()
+
+	p.goUntilTheEnd()
 
 	return &ast.ProgramUnit{
 		Filepath:     p.filepath,
@@ -210,13 +223,16 @@ func (p *Parser) parseTopLevelStatementList() []ast.TopLevelStatement {
 func (p *Parser) parseTopLevelStatement() ast.TopLevelStatement {
 	switch p.currentToken.Kind {
 	case lexer.PubKeywordTokenKind:
-		switch p.peekToken.Kind {
-		case lexer.FunKeywordTokenKind:
-			return p.parseFunctionDeclaration(true)
-		case lexer.StructKeywordTokenKind:
-			return p.parseStructureDeclaration(true)
-		default:
-			return nil
+		{
+			switch p.peekToken.Kind {
+			case lexer.FunKeywordTokenKind:
+				return p.parseFunctionDeclaration(true)
+			case lexer.StructKeywordTokenKind:
+				return p.parseStructureDeclaration(true)
+			default:
+				p.addUnexpectedPeekTokenError()
+				return nil
+			}
 		}
 
 	case lexer.FunKeywordTokenKind:
@@ -224,6 +240,7 @@ func (p *Parser) parseTopLevelStatement() ast.TopLevelStatement {
 	case lexer.StructKeywordTokenKind:
 		return p.parseStructureDeclaration(false)
 	default:
+		p.addUnexpectedCurrentTokenError()
 		return nil
 	}
 }
@@ -233,6 +250,10 @@ func (p *Parser) parseFunctionDeclaration(public bool) ast.TopLevelStatement {
 
 	if public {
 		p.advance() // 'pub'
+	}
+
+	if !p.expectCurrent(lexer.FunKeywordTokenKind) {
+		return nil
 	}
 
 	if !p.expectPeek(lexer.IdentifierTokenKind) {
@@ -249,15 +270,24 @@ func (p *Parser) parseFunctionDeclaration(public bool) ast.TopLevelStatement {
 
 	var arguments []*ast.FunctionArgument
 
+	// p.parseFunctionArgumentsDeclaration()
+
 	p.advance()
 	if p.currentTokenIs(lexer.CloseParentTokenKind) {
+		fmt.Println("ok")
 		arguments = []*ast.FunctionArgument{}
 	} else {
+		fmt.Println(p.currentToken.Kind)
+		fmt.Println("here")
 		arguments = p.parseFunctionArguments()
+
+		fmt.Println("ok 2")
 
 		if !p.expectCurrent(lexer.CloseParentTokenKind) {
 			return nil
 		}
+
+		fmt.Println("ok 3")
 	}
 
 	if !p.expectPeek(lexer.OpenBraceTokenKind) {
@@ -298,13 +328,23 @@ func (p *Parser) parseFunctionDeclaration(public bool) ast.TopLevelStatement {
 func (p *Parser) parseFunctionArguments() []*ast.FunctionArgument {
 	var arguments []*ast.FunctionArgument
 
+	// i := 0
 	for p.currentToken.Kind != lexer.CloseParentTokenKind {
+		if p.currentToken.Kind == lexer.EOFTokenKind {
+			p.addUnexpectedCurrentTokenError()
+			return nil
+		}
+
 		argument := p.parseFunctionArgument()
-		arguments = append(arguments, argument)
+		if argument != nil {
+			arguments = append(arguments, argument)
+		}
 
 		if p.currentToken.Kind == lexer.CommaTokenKind {
 			p.advance() // skip comma
 		}
+
+		// fmt.Println("loop x", i)
 	}
 
 	return arguments
@@ -317,9 +357,19 @@ func (p *Parser) parseFunctionArgument() *ast.FunctionArgument {
 
 	startLocation := p.currentToken.Location.StartLocation.Copy()
 	name := p.currentToken.Literal
-	typeDef := p.parseType()
 	p.advance()
+
+	typeDef := p.parseType()
+	if typeDef == nil {
+		return nil
+	}
+	fmt.Println("ok")
+
+	p.advance()
+	fmt.Println(p.currentToken.Kind)
 	endLocation := p.currentToken.Location.EndLocation.Copy()
+
+	fmt.Println("fjisdjfi")
 
 	return &ast.FunctionArgument{
 		Name: name,
@@ -337,21 +387,9 @@ func (p *Parser) parseStructureDeclaration(public bool) ast.TopLevelStatement {
 
 func (p *Parser) parseType() ast.Type {
 	switch p.currentToken.Kind {
-	case lexer.I8KeywordTokenKind:
-		return &ast.PrimaryType{Token: p.currentToken}
-	case lexer.I16KeywordTokenKind:
-		return &ast.PrimaryType{Token: p.currentToken}
-	case lexer.I32KeywordTokenKind:
-		return &ast.PrimaryType{Token: p.currentToken}
-	case lexer.I64KeywordTokenKind:
-		return &ast.PrimaryType{Token: p.currentToken}
-	case lexer.U8KeywordTokenKind:
-		return &ast.PrimaryType{Token: p.currentToken}
-	case lexer.U16KeywordTokenKind:
-		return &ast.PrimaryType{Token: p.currentToken}
-	case lexer.U32KeywordTokenKind:
-		return &ast.PrimaryType{Token: p.currentToken}
-	case lexer.U64KeywordTokenKind:
+	case lexer.I8KeywordTokenKind, lexer.I16KeywordTokenKind, lexer.I32KeywordTokenKind,
+		lexer.I64KeywordTokenKind, lexer.U8KeywordTokenKind, lexer.U16KeywordTokenKind,
+		lexer.U32KeywordTokenKind, lexer.U64KeywordTokenKind:
 		return &ast.PrimaryType{Token: p.currentToken}
 	case lexer.MulOpTokenKind:
 		return p.parsePointerType()
@@ -398,6 +436,7 @@ func (p *Parser) parseCustomType() ast.Type {
 		name.WriteByte('.')
 
 		if !p.expectPeekNoErr(lexer.DotTokenKind) {
+			p.advance()
 			buffer := name.String()
 			buffer = buffer[0 : len(buffer)-1]
 			return &ast.CustomType{Name: buffer, TypeLocation: &utils.CodeBlockLocation{
@@ -534,6 +573,34 @@ func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
 	return expression
 }
 
+func (p *Parser) parseGroupedExpression() ast.Expression {
+	p.advance()
+
+	expression := p.parseExpression(Lowest)
+
+	if !p.expectPeek(lexer.CloseParentTokenKind) {
+		return nil
+	}
+
+	return expression
+}
+
+func (p *Parser) parseArrayLiteral() ast.Expression {
+	startLocation := p.currentToken.Location.StartLocation.Copy()
+
+	var endLocation *utils.CodePointLocation
+
+	array := &ast.ArrayLiteral{}
+	array.Elements, endLocation = p.parseExpressionList(lexer.CloseBracketTokenKind)
+
+	array.BlockLocation = &utils.CodeBlockLocation{
+		StartLocation: startLocation,
+		EndLocation:   endLocation,
+	}
+
+	return array
+}
+
 func (p *Parser) parseBooleanLiteral() ast.Expression {
 	return &ast.BooleanLiteral{
 		TokenLocation: p.currentToken.Location.Copy(),
@@ -582,14 +649,14 @@ func (p *Parser) parseExpressionList(endTokenKind int) ([]ast.Expression, *utils
 
 func (p *Parser) addUnexpectedCurrentTokenError() {
 	p.problem_handler.AddCodeProblem(utils.NewLocalError(p.currentToken.Location.Copy(),
-		utils.UnexpectedToken2Err, []interface{}{
-			lexer.DumpTokenKind(p.currentToken.Kind)}))
+		utils.UnexpectedToken2Err,
+		lexer.DumpTokenKind(p.currentToken.Kind)))
 }
 
 func (p *Parser) addUnexpectedPeekTokenError() {
 	p.problem_handler.AddCodeProblem(utils.NewLocalError(p.peekToken.Location.Copy(),
-		utils.UnexpectedToken2Err, []interface{}{
-			lexer.DumpTokenKind(p.peekToken.Kind)}))
+		utils.UnexpectedToken2Err,
+		lexer.DumpTokenKind(p.peekToken.Kind)))
 }
 
 func (p *Parser) expectCurrent(tokenKind int) bool {
@@ -597,8 +664,8 @@ func (p *Parser) expectCurrent(tokenKind int) bool {
 		return true
 	} else {
 		p.problem_handler.AddCodeProblem(utils.NewLocalError(p.currentToken.Location.Copy(),
-			utils.UnexpectedTokenErr, []interface{}{lexer.DumpTokenKind(tokenKind),
-				lexer.DumpTokenKind(p.currentToken.Kind)}))
+			utils.UnexpectedTokenErr, lexer.DumpTokenKind(tokenKind),
+			lexer.DumpTokenKind(p.currentToken.Kind)))
 		return false
 	}
 }
@@ -618,8 +685,10 @@ func (p *Parser) expectPeek(tokenKind int) bool {
 		return true
 	} else {
 		p.problem_handler.AddCodeProblem(utils.NewLocalError(p.peekToken.Location.Copy(),
-			utils.UnexpectedTokenErr, []interface{}{lexer.DumpTokenKind(tokenKind),
-				lexer.DumpTokenKind(p.peekToken.Kind)}))
+			utils.UnexpectedTokenErr,
+
+			lexer.DumpTokenKind(tokenKind),
+			lexer.DumpTokenKind(p.peekToken.Kind)))
 		return false
 	}
 }
@@ -658,5 +727,7 @@ func (p *Parser) registerInfixFunction(tokenKind int, function infixParseFunctio
 
 func (p *Parser) advance() {
 	p.currentToken = p.peekToken
-	p.peekToken = p.lexer.NextToken()
+	p.peekToken = p.Lexer.NextToken()
+
+	fmt.Println(p.peekToken.Dump())
 }

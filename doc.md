@@ -47,6 +47,7 @@
     - [Return statements]()
     - [Continue statements]()
 
+
 </td><td valign=top>
 
 - [Memory managment system]()
@@ -215,4 +216,8 @@ The following character sequences represent operators and punctuators:
 /    <<    /=    <<=    ++    =     ,     ;    ~
 %    >>    %=    >>=    --    !     ...   .    :
 *    ^     *=    ^=     >     >=    {     }    ?
+```
+
+```ebnf
+char_lit      = "'" (  )
 ```

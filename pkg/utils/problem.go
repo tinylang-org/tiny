@@ -41,7 +41,7 @@ type CodeProblem struct {
 }
 
 func NewLocalProblem(global bool, critical bool, location *CodeBlockLocation,
-	code int, ctx []interface{}) *CodeProblem {
+	code int, ctx ...interface{}) *CodeProblem {
 	if global {
 		return &CodeProblem{
 			critical: critical,
@@ -60,18 +60,18 @@ func NewLocalProblem(global bool, critical bool, location *CodeBlockLocation,
 	}
 }
 
-func NewLocalWarning(location *CodeBlockLocation, code int, ctx []interface{}) *CodeProblem {
-	return NewLocalProblem(false, false, location, code, ctx)
+func NewLocalWarning(location *CodeBlockLocation, code int, ctx ...interface{}) *CodeProblem {
+	return NewLocalProblem(false, false, location, code, ctx...)
 }
 
-func NewLocalError(location *CodeBlockLocation, code int, ctx []interface{}) *CodeProblem {
-	return NewLocalProblem(false, true, location, code, ctx)
+func NewLocalError(location *CodeBlockLocation, code int, ctx ...interface{}) *CodeProblem {
+	return NewLocalProblem(false, true, location, code, ctx...)
 }
 
-func NewGlobalWarning(code int, ctx []interface{}) *CodeProblem {
-	return NewLocalProblem(true, false, nil, code, ctx)
+func NewGlobalWarning(code int, ctx ...interface{}) *CodeProblem {
+	return NewLocalProblem(true, false, nil, code, ctx...)
 }
 
-func NewGlobalError(code int, ctx []interface{}) *CodeProblem {
-	return NewLocalProblem(true, true, nil, code, ctx)
+func NewGlobalError(code int, ctx ...interface{}) *CodeProblem {
+	return NewLocalProblem(true, true, nil, code, ctx...)
 }

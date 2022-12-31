@@ -67,20 +67,28 @@ type Lexer struct {
 	currentLocation      *utils.CodePointLocation
 
 	problemHandler *utils.CodeProblemHandler
+
+	LineStartOffsets []int
+	LineEndOffsets   []int
 }
 
 func NewLexer(filepath string, source []byte, problemHandler *utils.CodeProblemHandler) *Lexer {
 	l := &Lexer{
-		filepath:       filepath,
-		source:         source,
-		sourceLength:   len(source),
-		problemHandler: problemHandler,
+		filepath:     filepath,
+		source:       source,
+		sourceLength: len(source),
+
 		currentLocation: &utils.CodePointLocation{
 			Filepath: filepath,
 			Index:    0,
 			Line:     1,
 			Column:   0,
 		},
+
+		problemHandler: problemHandler,
+
+		LineStartOffsets: []int{0},
+		LineEndOffsets:   []int{},
 	}
 
 	l.decodeRune()
@@ -105,9 +113,8 @@ func (l *Lexer) decodeRune() {
 			r, offset = utf8.DecodeRune(l.source[l.currentLocation.Index:])
 			if r == utf8.RuneError && offset == 1 {
 				l.problemHandler.AddCodeProblem(
-					utils.NewLocalError(
-						utils.NewOneCodePointBlockLocation(l.currentLocation),
-						utils.IllegalUTF8EncodingErr, []interface{}{}))
+					utils.NewLocalError(utils.NewOneCodePointBlockLocation(l.currentLocation),
+						utils.IllegalUTF8EncodingErr))
 			}
 		}
 
@@ -120,8 +127,10 @@ func (l *Lexer) decodeRune() {
 // Advance lexer state
 func (l *Lexer) advance() {
 	if l.currentCodePoint == '\n' {
+		l.LineEndOffsets = append(l.LineEndOffsets, l.currentLocation.Index-1)
 		l.currentLocation.Line++
 		l.currentLocation.Column = 0
+		l.LineStartOffsets = append(l.LineStartOffsets, l.currentLocation.Index+1)
 	} else {
 		l.currentLocation.Column++
 	}
@@ -245,18 +254,18 @@ func invalidSeparator(x string) int {
 // Scan digits sequence.
 //   2938487198.34
 //   ▲         ▲
-//   │         │
+//   │          │
 //   │         digits() is stopped
 //   digits() is called
-func (l *Lexer) digits(base int, invalid *int) (digitSeparator int) {
+func (l *Lexer) digits(base int, invalid *utils.CodePointLocation) (digitSeparator int) {
 	if base <= 10 {
 		max := rune('0' + base)
 		for isDecimal(l.currentCodePoint) || l.currentCodePoint == '_' {
 			ds := 1
 			if l.currentCodePoint == '_' {
 				ds = 2
-			} else if l.currentCodePoint >= max && *invalid < 0 {
-				*invalid = l.currentLocation.Index // record invalid rune offset
+			} else if l.currentCodePoint >= max && invalid.Index < 0 {
+				invalid = l.currentLocation // record invalid rune location
 			}
 			digitSeparator |= ds
 			l.advance()
@@ -282,8 +291,8 @@ func (l *Lexer) nextNumberToken() *Token {
 	prefix := rune(0)   // one of 0 (decimal), '0' (0-octal), 'x', 'o', or 'b'
 	digitSeparator := 0 // bit 0: digit present, bit 1: '_' present
 
-	// location of invalid digit in literal, or < 0
-	invalid := -1
+	// location of invalid digit in literal, or every member < 0
+	invalid := &utils.CodePointLocation{Index: -1, Line: -1, Column: -1}
 
 	// integer part
 	if l.currentCodePoint != '.' {
@@ -305,7 +314,7 @@ func (l *Lexer) nextNumberToken() *Token {
 				digitSeparator = 1 // leading 0
 			}
 		}
-		digitSeparator |= l.digits(base, &invalid)
+		digitSeparator |= l.digits(base, invalid)
 	}
 
 	// fractional part
@@ -316,10 +325,10 @@ func (l *Lexer) nextNumberToken() *Token {
 				utils.NewLocalError(
 					&utils.CodeBlockLocation{StartLocation: startLocation,
 						EndLocation: l.currentLocation.Copy()},
-					utils.InvalidRadixPointErr, []interface{}{numberLiteralName(prefix)}))
+					utils.InvalidRadixPointErr, numberLiteralName(prefix)))
 		}
 		l.advance()
-		digitSeparator |= l.digits(base, &invalid)
+		digitSeparator |= l.digits(base, invalid)
 	}
 
 	if digitSeparator&1 == 0 {
@@ -327,7 +336,7 @@ func (l *Lexer) nextNumberToken() *Token {
 			utils.NewLocalError(
 				&utils.CodeBlockLocation{StartLocation: startLocation,
 					EndLocation: l.currentLocation.Copy()},
-				utils.HasNoDigitsErr, []interface{}{numberLiteralName(prefix)}))
+				utils.HasNoDigitsErr, numberLiteralName(prefix)))
 	}
 
 	// exponent
@@ -339,14 +348,14 @@ func (l *Lexer) nextNumberToken() *Token {
 					&utils.CodeBlockLocation{StartLocation: startLocation,
 						EndLocation: l.currentLocation.Copy()},
 					utils.ExponentRequiresDecimalMantissaErr,
-					[]interface{}{l.currentCodePoint}))
+					l.currentCodePoint))
 		case e == 'p' && prefix != 'x':
 			l.problemHandler.AddCodeProblem(
 				utils.NewLocalError(
 					&utils.CodeBlockLocation{StartLocation: startLocation,
 						EndLocation: l.currentLocation.Copy()},
 					utils.ExponentRequiresHexadecimalMantissaErr,
-					[]interface{}{l.currentCodePoint}))
+					l.currentCodePoint))
 		}
 		l.advance()
 		tokenKind = FloatTokenKind
@@ -360,16 +369,14 @@ func (l *Lexer) nextNumberToken() *Token {
 				utils.NewLocalError(
 					&utils.CodeBlockLocation{StartLocation: startLocation,
 						EndLocation: l.currentLocation.Copy()},
-					utils.ExponentHasNoDigitsErr,
-					[]interface{}{}))
+					utils.ExponentHasNoDigitsErr))
 		}
 	} else if prefix == 'x' && tokenKind == FloatTokenKind {
 		l.problemHandler.AddCodeProblem(
 			utils.NewLocalError(
 				&utils.CodeBlockLocation{StartLocation: startLocation,
 					EndLocation: l.currentLocation.Copy()},
-				utils.HexadecimalMantissaRequiresPExponentErr,
-				[]interface{}{}))
+				utils.HexadecimalMantissaRequiresPExponentErr))
 	}
 
 	// suffix 'i'
@@ -379,13 +386,13 @@ func (l *Lexer) nextNumberToken() *Token {
 	}
 
 	buffer := string(l.source[startLocation.Index:l.currentLocation.Index])
-	if tokenKind == IntTokenKind && invalid >= 0 {
+	if tokenKind == IntTokenKind && invalid.Index >= 0 {
 		l.problemHandler.AddCodeProblem(
 			utils.NewLocalError(
-				&utils.CodeBlockLocation{StartLocation: startLocation,
-					EndLocation: l.currentLocation.Copy()},
+				utils.NewOneCodePointBlockLocation(invalid),
 				utils.InvalidDigitErr,
-				[]interface{}{buffer[invalid-startLocation.Index], numberLiteralName(prefix)}))
+				buffer[invalid.Index-startLocation.Index],
+				numberLiteralName(prefix)))
 	}
 	if digitSeparator&2 != 0 {
 		if i := invalidSeparator(buffer); i >= 0 {
@@ -393,8 +400,7 @@ func (l *Lexer) nextNumberToken() *Token {
 				utils.NewLocalError(
 					&utils.CodeBlockLocation{StartLocation: startLocation,
 						EndLocation: l.currentLocation.Copy()},
-					utils.UnderscoreMustSeparateSuccessiveDigitsErr,
-					[]interface{}{}))
+					utils.UnderscoreMustSeparateSuccessiveDigitsErr))
 		}
 	}
 
@@ -444,7 +450,8 @@ func (l *Lexer) nextMultiLineCommentToken() *Token {
 			l.problemHandler.AddCodeProblem(
 				utils.NewLocalError(
 					utils.NewOneCodePointBlockLocation(l.currentLocation),
-					utils.NotClosedMultiLineCommentErr, []interface{}{l.currentCodePoint}))
+					utils.NotClosedMultiLineCommentErr,
+					l.currentCodePoint))
 			return &Token{Kind: CommentTokenKind,
 				Literal: string(l.source[startLocation.Index+2 : l.currentLocation.Index]),
 				Location: &utils.CodeBlockLocation{StartLocation: startLocation,
@@ -500,7 +507,7 @@ func (l *Lexer) nextWrappedIdentifierToken() *Token {
 			l.problemHandler.AddCodeProblem(
 				utils.NewLocalError(
 					location,
-					utils.NotClosedWrappedIdentifierErr, []interface{}{}))
+					utils.NotClosedWrappedIdentifierErr))
 
 			return &Token{Kind: IdentifierTokenKind,
 				Literal:  string(l.source[startLocation.Index:l.currentLocation.Index]),
@@ -555,7 +562,7 @@ func (l *Lexer) scanEscape(quote rune) bool {
 		l.problemHandler.AddCodeProblem(
 			utils.NewLocalError(
 				utils.NewOneCodePointBlockLocation(l.currentLocation),
-				err, []interface{}{}))
+				err))
 
 		return false
 	}
@@ -568,13 +575,13 @@ func (l *Lexer) scanEscape(quote rune) bool {
 				l.problemHandler.AddCodeProblem(
 					utils.NewLocalError(
 						utils.NewOneCodePointBlockLocation(l.currentLocation),
-						utils.EscapeSequenceNotTerminatedErr, []interface{}{}))
+						utils.EscapeSequenceNotTerminatedErr))
 			} else {
 				l.problemHandler.AddCodeProblem(
 					utils.NewLocalError(
 						utils.NewOneCodePointBlockLocation(l.currentLocation),
 						utils.IllegalCharacterInEscapeSequenceErr,
-						[]interface{}{l.currentCodePoint}))
+						l.currentCodePoint))
 			}
 			return false
 		}
@@ -588,8 +595,7 @@ func (l *Lexer) scanEscape(quote rune) bool {
 		l.problemHandler.AddCodeProblem(
 			utils.NewLocalError(
 				utils.NewOneCodePointBlockLocation(l.currentLocation),
-				utils.EscapeSequenceIsInvalidUTF8CodePointErr,
-				[]interface{}{}))
+				utils.EscapeSequenceIsInvalidUTF8CodePointErr))
 		return false
 	}
 
@@ -604,11 +610,11 @@ func (l *Lexer) nextStringToken() *Token {
 	for {
 		if l.currentCodePoint == '\n' || l.currentCodePoint == -1 {
 			location := &utils.CodeBlockLocation{StartLocation: startLocation,
-				EndLocation: l.currentLocation.Copy()}
+				EndLocation: l.currentLocation.PreviousByteLocation()}
 
 			l.problemHandler.AddCodeProblem(
 				utils.NewLocalError(
-					location, utils.NotClosedStringErr, []interface{}{}))
+					location, utils.NotClosedStringErr))
 
 			return &Token{Kind: StringTokenKind,
 				Literal:  string(l.source[startLocation.Index+1 : l.currentLocation.Index-1]),
@@ -634,7 +640,7 @@ func (l *Lexer) nextStringToken() *Token {
 			EndLocation: l.currentLocation.Copy()}}
 }
 
-// Scan the next token and return it. If there scanning error it will
+// NextToken scans the next token and return it. If there scanning error it will
 // be added to l.diagnostics. If there's unexpected character InvalidTokenKind will
 // be returned. If another type of error will be occured in the process
 // of scanning, then lexer will try to return a valid token.
@@ -645,7 +651,10 @@ func (l *Lexer) NextToken() *Token {
 
 	switch l.currentCodePoint {
 	case -1:
-		return l.characterToken(EOFTokenKind, "\\0")
+		{
+			l.LineEndOffsets = append(l.LineEndOffsets, l.currentLocation.Index)
+			return l.characterToken(EOFTokenKind, "\\0")
+		}
 	case '`':
 		return l.nextWrappedIdentifierToken()
 	case '"':
@@ -787,7 +796,7 @@ func (l *Lexer) NextToken() *Token {
 			l.problemHandler.AddCodeProblem(
 				utils.NewLocalError(
 					utils.NewOneCodePointBlockLocation(l.currentLocation),
-					utils.UnexpectedCharacterErr, []interface{}{l.currentCodePoint}))
+					utils.UnexpectedCharacterErr, l.currentCodePoint))
 			result = l.characterToken(InvalidTokenKind, string(l.currentCodePoint))
 		}
 	}

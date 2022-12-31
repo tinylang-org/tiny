@@ -23,6 +23,7 @@
 package parser
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,14 +34,28 @@ import (
 
 func TestBooleanLiteral(t *testing.T) {
 	p := utils.NewCodeProblemHandler()
-	parser := NewParser("", []byte("true"), p)
+	parser := NewParser("", []byte("true;"), p)
 	statement := parser.parseStatement()
 	assert.Equal(t, true, statement.(*ast.BooleanLiteral).Value)
 }
 
+func TestBinaryExpression(t *testing.T) {
+	p := utils.NewCodeProblemHandler()
+	parser := NewParser("", []byte("(true + false) == true;"), p)
+	statement := parser.parseStatement()
+	fmt.Println(statement)
+	assert.Equal(t, "==", statement.(*ast.InfixExpression).Operator)
+	assert.Equal(t, true, statement.(*ast.InfixExpression).Right.(*ast.BooleanLiteral).Value)
+	assert.Equal(t, "+", statement.(*ast.InfixExpression).Left.(*ast.InfixExpression).Operator)
+	assert.Equal(t, true,
+		statement.(*ast.InfixExpression).Left.(*ast.InfixExpression).Left.(*ast.BooleanLiteral).Value)
+	assert.Equal(t, false,
+		statement.(*ast.InfixExpression).Left.(*ast.InfixExpression).Right.(*ast.BooleanLiteral).Value)
+}
+
 func TestStringLiteral(t *testing.T) {
 	p := utils.NewCodeProblemHandler()
-	parser := NewParser("", []byte("\"hello\""), p)
+	parser := NewParser("", []byte("\"hello\";"), p)
 	statement := parser.parseStatement()
 	assert.Equal(t, "hello", statement.(*ast.StringLiteral).Value)
 }

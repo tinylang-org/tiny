@@ -24,7 +24,6 @@
 package parser
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/tinylang-org/tiny/pkg/ast"
@@ -60,10 +59,13 @@ var precedences = map[int]int{
 }
 
 type Parser struct {
+	LineStartOffsets *[]int
+	LineEndOffsets   *[]int
+
 	filepath string
 
 	problem_handler *utils.CodeProblemHandler
-	Lexer           *lexer.Lexer
+	lexer           *lexer.Lexer
 
 	prefixParseFunctions map[int]prefixParseFunction
 	infixParseFunctions  map[int]infixParseFunction
@@ -80,8 +82,12 @@ type (
 func NewParser(filepath string, source []byte,
 	problem_handler *utils.CodeProblemHandler) *Parser {
 	p := &Parser{filepath: filepath,
-		Lexer: lexer.NewLexer(filepath, source, problem_handler)}
+		lexer: lexer.NewLexer(filepath, source, problem_handler)}
+
 	p.problem_handler = problem_handler
+
+	p.LineStartOffsets = p.lexer.LineStartOffsets
+	p.LineEndOffsets = p.lexer.LineEndOffsets
 
 	p.prefixParseFunctions = make(map[int]prefixParseFunction)
 
@@ -274,20 +280,13 @@ func (p *Parser) parseFunctionDeclaration(public bool) ast.TopLevelStatement {
 
 	p.advance()
 	if p.currentTokenIs(lexer.CloseParentTokenKind) {
-		fmt.Println("ok")
 		arguments = []*ast.FunctionArgument{}
 	} else {
-		fmt.Println(p.currentToken.Kind)
-		fmt.Println("here")
 		arguments = p.parseFunctionArguments()
-
-		fmt.Println("ok 2")
 
 		if !p.expectCurrent(lexer.CloseParentTokenKind) {
 			return nil
 		}
-
-		fmt.Println("ok 3")
 	}
 
 	if !p.expectPeek(lexer.OpenBraceTokenKind) {
@@ -343,8 +342,6 @@ func (p *Parser) parseFunctionArguments() []*ast.FunctionArgument {
 		if p.currentToken.Kind == lexer.CommaTokenKind {
 			p.advance() // skip comma
 		}
-
-		// fmt.Println("loop x", i)
 	}
 
 	return arguments
@@ -363,13 +360,9 @@ func (p *Parser) parseFunctionArgument() *ast.FunctionArgument {
 	if typeDef == nil {
 		return nil
 	}
-	fmt.Println("ok")
 
 	p.advance()
-	fmt.Println(p.currentToken.Kind)
 	endLocation := p.currentToken.Location.EndLocation.Copy()
-
-	fmt.Println("fjisdjfi")
 
 	return &ast.FunctionArgument{
 		Name: name,
@@ -727,7 +720,5 @@ func (p *Parser) registerInfixFunction(tokenKind int, function infixParseFunctio
 
 func (p *Parser) advance() {
 	p.currentToken = p.peekToken
-	p.peekToken = p.Lexer.NextToken()
-
-	fmt.Println(p.peekToken.Dump())
+	p.peekToken = p.lexer.NextToken()
 }

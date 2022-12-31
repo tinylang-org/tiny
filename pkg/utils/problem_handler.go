@@ -25,21 +25,24 @@ package utils
 import (
 	"bufio"
 	"fmt"
-	"github.com/fatih/color"
 	"io"
 	"os"
 	"strings"
+
+	"github.com/fatih/color"
 )
 
 type CodeProblemHandler struct {
 	Ok             bool
 	colorfulOutput bool
 
-	source   []byte
+	source       []byte
+	sourceLength int
+
 	problems []*CodeProblem
 
-	lineStartOffsets []int
-	lineEndOffsets   []int
+	lineStartOffsets *[]int
+	lineEndOffsets   *[]int
 }
 
 func NewCodeProblemHandler() *CodeProblemHandler {
@@ -47,10 +50,11 @@ func NewCodeProblemHandler() *CodeProblemHandler {
 		Ok:             true,
 		colorfulOutput: false,
 		source:         []byte(""),
+		sourceLength:   0,
 		problems:       []*CodeProblem{},
 
-		lineStartOffsets: []int{},
-		lineEndOffsets:   []int{},
+		lineStartOffsets: &[]int{},
+		lineEndOffsets:   &[]int{},
 	}
 }
 
@@ -58,11 +62,11 @@ func (h *CodeProblemHandler) SetColorfulOutput() {
 	h.colorfulOutput = true
 }
 
-func (h *CodeProblemHandler) SetLineStartOffsets(lineStartOffsets []int) {
+func (h *CodeProblemHandler) SetLineStartOffsets(lineStartOffsets *[]int) {
 	h.lineStartOffsets = lineStartOffsets
 }
 
-func (h *CodeProblemHandler) SetLineEndOffsets(lineEndOffsets []int) {
+func (h *CodeProblemHandler) SetLineEndOffsets(lineEndOffsets *[]int) {
 	h.lineEndOffsets = lineEndOffsets
 }
 
@@ -76,6 +80,7 @@ func (h *CodeProblemHandler) AddCodeProblem(problem *CodeProblem) {
 
 func (h *CodeProblemHandler) SetSource(source []byte) {
 	h.source = source
+	h.sourceLength = len(source)
 }
 
 func (h *CodeProblemHandler) printFormattedCodeBlock(
@@ -119,7 +124,7 @@ func (h *CodeProblemHandler) printCodeBlock(problem *CodeProblem) {
 	}
 
 	h.printFormattedCodeBlock(
-		h.lineStartOffsets[problem.location.StartLocation.Line-1],
+		(*h.lineStartOffsets)[problem.location.StartLocation.Line-1],
 		problem.location.StartLocation.Index,
 		w)
 
@@ -128,10 +133,12 @@ func (h *CodeProblemHandler) printCodeBlock(problem *CodeProblem) {
 		problem.location.EndLocation.Index,
 		prc)
 
-	h.printFormattedCodeBlock(
-		problem.location.EndLocation.Index,
-		h.lineEndOffsets[problem.location.EndLocation.Line-1]+1,
-		w)
+	if problem.location.StartLocation.Index < h.sourceLength {
+		h.printFormattedCodeBlock(
+			problem.location.EndLocation.Index,
+			(*h.lineEndOffsets)[problem.location.EndLocation.Line-1]+1,
+			w)
+	}
 
 	fmt.Fprint(os.Stderr, "\n")
 
@@ -235,7 +242,6 @@ func (h *CodeProblemHandler) PrintProblems() {
 func (h *CodeProblemHandler) PrintDiagnostics() {
 	h.PrintProblems()
 
-	fmt.Fprintf(os.Stderr, "\n")
 	if !h.Ok {
 		if h.colorfulOutput {
 			color.New(color.FgRed, color.Bold).Fprintln(

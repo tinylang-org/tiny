@@ -68,8 +68,8 @@ type Lexer struct {
 
 	problemHandler *utils.CodeProblemHandler
 
-	LineStartOffsets []int
-	LineEndOffsets   []int
+	LineStartOffsets *[]int
+	LineEndOffsets   *[]int
 }
 
 func NewLexer(filepath string, source []byte, problemHandler *utils.CodeProblemHandler) *Lexer {
@@ -87,11 +87,16 @@ func NewLexer(filepath string, source []byte, problemHandler *utils.CodeProblemH
 
 		problemHandler: problemHandler,
 
-		LineStartOffsets: []int{0},
-		LineEndOffsets:   []int{},
+		LineStartOffsets: &[]int{0},
+		LineEndOffsets:   &[]int{},
 	}
 
 	l.decodeRune()
+
+	// Check for the byte order mark in the beginning of the file
+	if l.currentCodePoint == 0xFEFF {
+		l.advance()
+	}
 
 	return l
 }
@@ -127,10 +132,10 @@ func (l *Lexer) decodeRune() {
 // Advance lexer state
 func (l *Lexer) advance() {
 	if l.currentCodePoint == '\n' {
-		l.LineEndOffsets = append(l.LineEndOffsets, l.currentLocation.Index-1)
+		*l.LineEndOffsets = append(*l.LineEndOffsets, l.currentLocation.Index-1)
 		l.currentLocation.Line++
 		l.currentLocation.Column = 0
-		l.LineStartOffsets = append(l.LineStartOffsets, l.currentLocation.Index+1)
+		*l.LineStartOffsets = append(*l.LineStartOffsets, l.currentLocation.Index+1)
 	} else {
 		l.currentLocation.Column++
 	}
@@ -142,7 +147,7 @@ func (l *Lexer) advance() {
 
 // Skip whitespaces block.
 //   var  \t   a: i32 = 3;
-//     ▲       ▲
+//     ▲      ▲
 //     │       │
 //     │       ending here
 //     starting from here
@@ -257,16 +262,17 @@ func invalidSeparator(x string) int {
 //   │          │
 //   │         digits() is stopped
 //   digits() is called
-func (l *Lexer) digits(base int, invalid *utils.CodePointLocation) (digitSeparator int) {
+func (l *Lexer) digits(base int, invalid **utils.CodePointLocation) (digitSeparator int) {
 	if base <= 10 {
 		max := rune('0' + base)
 		for isDecimal(l.currentCodePoint) || l.currentCodePoint == '_' {
 			ds := 1
 			if l.currentCodePoint == '_' {
 				ds = 2
-			} else if l.currentCodePoint >= max && invalid.Index < 0 {
-				invalid = l.currentLocation // record invalid rune location
+			} else if l.currentCodePoint >= max && *invalid == nil {
+				*invalid = l.currentLocation.Copy() // record invalid rune location
 			}
+
 			digitSeparator |= ds
 			l.advance()
 		}
@@ -276,10 +282,12 @@ func (l *Lexer) digits(base int, invalid *utils.CodePointLocation) (digitSeparat
 			if l.currentCodePoint == '_' {
 				ds = 2
 			}
+
 			digitSeparator |= ds
 			l.advance()
 		}
 	}
+
 	return
 }
 
@@ -291,8 +299,8 @@ func (l *Lexer) nextNumberToken() *Token {
 	prefix := rune(0)   // one of 0 (decimal), '0' (0-octal), 'x', 'o', or 'b'
 	digitSeparator := 0 // bit 0: digit present, bit 1: '_' present
 
-	// location of invalid digit in literal, or every member < 0
-	invalid := &utils.CodePointLocation{Index: -1, Line: -1, Column: -1}
+	// location of invalid digit in literal, or nil
+	var invalid *utils.CodePointLocation = nil
 
 	// integer part
 	if l.currentCodePoint != '.' {
@@ -314,7 +322,7 @@ func (l *Lexer) nextNumberToken() *Token {
 				digitSeparator = 1 // leading 0
 			}
 		}
-		digitSeparator |= l.digits(base, invalid)
+		digitSeparator |= l.digits(base, &invalid)
 	}
 
 	// fractional part
@@ -323,12 +331,11 @@ func (l *Lexer) nextNumberToken() *Token {
 		if prefix == 'o' || prefix == 'b' {
 			l.problemHandler.AddCodeProblem(
 				utils.NewLocalError(
-					&utils.CodeBlockLocation{StartLocation: startLocation,
-						EndLocation: l.currentLocation.Copy()},
+					utils.NewOneCodePointBlockLocation(l.currentLocation),
 					utils.InvalidRadixPointErr, numberLiteralName(prefix)))
 		}
 		l.advance()
-		digitSeparator |= l.digits(base, invalid)
+		digitSeparator |= l.digits(base, &invalid)
 	}
 
 	if digitSeparator&1 == 0 {
@@ -345,25 +352,28 @@ func (l *Lexer) nextNumberToken() *Token {
 		case e == 'e' && prefix != 0 && prefix != '0':
 			l.problemHandler.AddCodeProblem(
 				utils.NewLocalError(
-					&utils.CodeBlockLocation{StartLocation: startLocation,
-						EndLocation: l.currentLocation.Copy()},
+					utils.NewOneCodePointBlockLocation(l.currentLocation),
 					utils.ExponentRequiresDecimalMantissaErr,
 					l.currentCodePoint))
 		case e == 'p' && prefix != 'x':
 			l.problemHandler.AddCodeProblem(
 				utils.NewLocalError(
-					&utils.CodeBlockLocation{StartLocation: startLocation,
-						EndLocation: l.currentLocation.Copy()},
+					utils.NewOneCodePointBlockLocation(l.currentLocation),
 					utils.ExponentRequiresHexadecimalMantissaErr,
 					l.currentCodePoint))
 		}
+
 		l.advance()
+
 		tokenKind = FloatTokenKind
+
 		if l.currentCodePoint == '+' || l.currentCodePoint == '-' {
 			l.advance()
 		}
+
 		ds := l.digits(10, nil)
 		digitSeparator |= ds
+
 		if ds&1 == 0 {
 			l.problemHandler.AddCodeProblem(
 				utils.NewLocalError(
@@ -386,7 +396,8 @@ func (l *Lexer) nextNumberToken() *Token {
 	}
 
 	buffer := string(l.source[startLocation.Index:l.currentLocation.Index])
-	if tokenKind == IntTokenKind && invalid.Index >= 0 {
+
+	if tokenKind == IntTokenKind && invalid != nil {
 		l.problemHandler.AddCodeProblem(
 			utils.NewLocalError(
 				utils.NewOneCodePointBlockLocation(invalid),
@@ -394,6 +405,7 @@ func (l *Lexer) nextNumberToken() *Token {
 				buffer[invalid.Index-startLocation.Index],
 				numberLiteralName(prefix)))
 	}
+
 	if digitSeparator&2 != 0 {
 		if i := invalidSeparator(buffer); i >= 0 {
 			l.problemHandler.AddCodeProblem(
@@ -449,8 +461,7 @@ func (l *Lexer) nextMultiLineCommentToken() *Token {
 		if l.currentCodePoint == -1 {
 			l.problemHandler.AddCodeProblem(
 				utils.NewLocalError(
-					&utils.CodeBlockLocation{StartLocation: startLocation,
-						EndLocation: l.currentLocation.Copy()},
+					utils.NewOneCodePointBlockLocation(startLocation),
 					utils.NotClosedMultiLineCommentErr))
 			return &Token{Kind: CommentTokenKind,
 				Literal: string(l.source[startLocation.Index+2 : l.currentLocation.Index]),
@@ -468,6 +479,25 @@ func (l *Lexer) nextMultiLineCommentToken() *Token {
 	return &Token{Kind: CommentTokenKind, Literal: buffer,
 		Location: &utils.CodeBlockLocation{StartLocation: startLocation,
 			EndLocation: l.currentLocation.Copy()}}
+}
+
+// From https://github.com/golang/go/blob/db36eca33c389871b132ffb1a84fd534a349e8d8/src/go/scanner/scanner.go#L663
+func stripCR(b []byte, comment bool) []byte {
+	c := make([]byte, len(b))
+	i := 0
+	for j, ch := range b {
+		// In a /*-style comment, don't strip \r from *\r/ (incl.
+		// sequences of \r from *\r\r...\r/) since the resulting
+		// */ would terminate the comment too early unless the \r
+		// is immediately following the opening /* in which case
+		// it's ok because /*/ is not closed yet
+		// (issue #11151 from https://github.com/golang/go).
+		if ch != '\r' || comment && i > len("/*") && c[i-1] == '*' && j+1 < len(b) && b[j+1] == '/' {
+			c[i] = ch
+			i++
+		}
+	}
+	return c[:i]
 }
 
 func (l *Lexer) nextNameToken() *Token {
@@ -499,10 +529,25 @@ func (l *Lexer) nextNameToken() *Token {
 func (l *Lexer) nextWrappedIdentifierToken() *Token {
 	startLocation := l.currentLocation.Copy()
 	l.advance() // '`'
+
+	hasCR := false
+
 	for l.currentCodePoint != '`' {
+		if l.currentCodePoint == '\r' {
+			hasCR = true
+		}
+
 		if l.currentCodePoint == '\n' || l.currentCodePoint == -1 {
+			var endLocation *utils.CodePointLocation
+
+			if l.currentCodePoint == '\n' && hasCR {
+				endLocation = l.currentLocation.PreviousByteLocation()
+			} else {
+				endLocation = l.currentLocation.Copy()
+			}
+
 			location := &utils.CodeBlockLocation{StartLocation: startLocation,
-				EndLocation: l.currentLocation.Copy()}
+				EndLocation: endLocation}
 
 			l.problemHandler.AddCodeProblem(
 				utils.NewLocalError(
@@ -555,7 +600,7 @@ func (l *Lexer) scanEscape(quote rune) bool {
 		n, base, max = 8, 16, unicode.MaxRune
 	default:
 		err := utils.UnknownEscapeSequenceErr
-		if l.currentCodePoint == -1 {
+		if l.currentCodePoint < 0 {
 			err = utils.EscapeSequenceNotTerminatedErr
 		}
 
@@ -571,7 +616,7 @@ func (l *Lexer) scanEscape(quote rune) bool {
 	for n > 0 {
 		d := uint32(digitVal(l.currentCodePoint))
 		if d >= base {
-			if l.currentCodePoint == -1 {
+			if l.currentCodePoint < 0 {
 				l.problemHandler.AddCodeProblem(
 					utils.NewLocalError(
 						utils.NewOneCodePointBlockLocation(l.currentLocation),
@@ -604,14 +649,19 @@ func (l *Lexer) scanEscape(quote rune) bool {
 
 func (l *Lexer) nextStringToken() *Token {
 	startLocation := l.currentLocation.Copy()
+	hasCR := false
 
 	l.advance() // '"'
 
 	for {
+		if l.currentCodePoint == '\r' {
+			hasCR = true
+		}
+
 		if l.currentCodePoint == '\n' || l.currentCodePoint == -1 {
 			var endLocation *utils.CodePointLocation
 
-			if l.currentCodePoint == '\n' {
+			if l.currentCodePoint == '\n' && hasCR {
 				endLocation = l.currentLocation.PreviousByteLocation()
 			} else {
 				endLocation = l.currentLocation.Copy()
@@ -660,7 +710,7 @@ func (l *Lexer) NextToken() *Token {
 	switch l.currentCodePoint {
 	case -1:
 		{
-			l.LineEndOffsets = append(l.LineEndOffsets, l.currentLocation.Index)
+			*l.LineEndOffsets = append(*l.LineEndOffsets, l.currentLocation.Index-1)
 			return l.characterToken(EOFTokenKind, "\\0")
 		}
 	case '`':
@@ -797,7 +847,7 @@ func (l *Lexer) NextToken() *Token {
 		if isIdentifierStart(l.currentCodePoint) {
 			return l.nextNameToken()
 		} else if isDecimal(l.currentCodePoint) || l.currentCodePoint == '.' && isDecimal(rune(l.peekByte())) {
-			result = l.nextNumberToken()
+			return l.nextNumberToken()
 		} else if l.currentCodePoint == '.' {
 			result = l.characterToken(DotTokenKind, ".")
 		} else {
